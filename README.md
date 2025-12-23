@@ -83,6 +83,11 @@ Para usar o sistema em vários computadores (um sendo a TV, outro o Totem, outro
 2.  Nos outros computadores, digite o IP dele no navegador.
     *   Exemplo: `http://192.168.1.15:3000`
 
+### Sincronização com GitHub (Windows)
+Para facilitar a sincronização, incluímos dois scripts na raiz do projeto:
+-   `salvar_no_github.bat`: Clique duas vezes, digite a descrição da mudança, e ele envia para a nuvem.
+-   `baixar_do_github.bat`: Clique duas vezes para baixar as atualizações mais recentes do repositório.
+
 ---
 
 ## 🔐 Senhas de Acesso

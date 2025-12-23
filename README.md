@@ -88,6 +88,38 @@ Para facilitar a sincronização, incluímos dois scripts na raiz do projeto:
 -   `salvar_no_github.bat`: Clique duas vezes, digite a descrição da mudança, e ele envia para a nuvem.
 -   `baixar_do_github.bat`: Clique duas vezes para baixar as atualizações mais recentes do repositório.
 
+-   `baixar_do_github.bat`: Clique duas vezes para baixar as atualizações mais recentes do repositório.
+
+---
+
+## 💻 Instalação em Outro Computador
+
+Se você quiser baixar o projeto em um computador novo:
+
+1.  **Baixar o Código (Clone):**
+    Abra o terminal na pasta onde quer salvar e digite:
+    ```bash
+    git clone https://github.com/Sonnyzera/atende-.git
+    ```
+2.  **Entrar na Pasta:**
+    ```bash
+    cd atende-
+    ```
+3.  **Instalar Dependências:**
+    (Importantíssimo: baixa a pasta `node_modules`)
+    ```bash
+    npm install
+    ```
+4.  **Criar Banco de Dados:**
+    (Cria o arquivo `dev.db` no novo PC)
+    ```bash
+    npx prisma migrate dev
+    ```
+5.  **Rodar:**
+    ```bash
+    node server.js
+    ```
+
 ---
 
 ## 🔐 Senhas de Acesso

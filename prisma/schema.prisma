@@ -19,6 +19,7 @@ model Senha {
   atendente       String?
   horaGeracao     DateTime @default(now())
   horaChamada     DateTime?
+  horaInicio      DateTime?
   horaFinalizacao DateTime?
 }
 
@@ -36,4 +37,10 @@ model Usuario {
 model Config {
   key   String @id
   value String // Alterado de Int para String para flexibilidade
+}
+
+model Servico {
+  id    String  @id @default(uuid())
+  nome  String  @unique
+  ativo Boolean @default(true)
 }

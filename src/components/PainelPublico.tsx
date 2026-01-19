@@ -48,7 +48,7 @@ export default function PainelPublico() {
   };
 
   useEffect(() => {
-    if (senhaAtual && senhaAtual.status === 'chamada') {
+    if (senhaAtual && ['chamada', 'atendendo'].includes(senhaAtual.status)) {
       announceTicket(senhaAtual);
     }
   }, [senhaAtual]);
@@ -95,11 +95,13 @@ export default function PainelPublico() {
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary-500/10 rounded-full blur-[100px] animate-pulse"></div>
             )}
 
-            {senhaAtual && senhaAtual.status === 'chamada' ? (
+            {senhaAtual && ['chamada', 'atendendo'].includes(senhaAtual.status) ? (
               <div className="relative z-10 w-full animate-in zoom-in-90 duration-300">
-                <div className="inline-flex items-center gap-3 bg-secondary-900/50 backdrop-blur-md px-6 py-2 rounded-full border border-secondary-600 mb-12">
-                  <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-                  <span className="text-green-400 font-bold tracking-wider uppercase">Chamando Agora</span>
+                <div className={`inline-flex items-center gap-3 ${senhaAtual.status === 'chamada' ? 'bg-secondary-900/50 border-secondary-600' : 'bg-green-900/50 border-green-600'} backdrop-blur-md px-6 py-2 rounded-full border mb-12 transition-colors duration-500`}>
+                  <span className={`w-3 h-3 rounded-full animate-pulse ${senhaAtual.status === 'chamada' ? 'bg-green-500' : 'bg-green-400'}`}></span>
+                  <span className={`font-bold tracking-wider uppercase ${senhaAtual.status === 'chamada' ? 'text-green-400' : 'text-green-300'}`}>
+                    {senhaAtual.status === 'chamada' ? 'Chamando Agora' : 'Em Atendimento'}
+                  </span>
                 </div>
 
                 <div className="mb-10">

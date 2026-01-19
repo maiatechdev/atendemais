@@ -4,11 +4,12 @@ import { Phone, CheckCircle, Volume2, Clock, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Atendente() {
-  const { senhas, usuarios, chamarSenha, finalizarAtendimento, cancelarSenha, repetirSenha, login } = useSenhas();
+  const { senhas, usuarios, servicos, chamarSenha, iniciarAtendimento, finalizarAtendimento, cancelarSenha, repetirSenha, login, atualizarSessaoAtendente } = useSenhas();
   const navigate = useNavigate();
 
   // Auth States
   const [logado, setLogado] = useState(false);
+  const [sessionConfigured, setSessionConfigured] = useState(false); // New: Session setup completed?
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -27,7 +28,7 @@ export default function Atendente() {
     return true;
   });
 
-  const senhaAtual = senhas.find(s => s.status === 'atendendo' && s.guiche === guiche);
+  const senhaAtual = senhas.find(s => (s.status === 'atendendo' || s.status === 'chamada') && s.guiche === guiche);
 
   // --- LOGIN HANDLER ---
   const handleLogin = async (e: React.FormEvent) => {
@@ -185,8 +186,8 @@ export default function Atendente() {
               <div className="absolute top-0 left-0 w-2 h-full bg-green-500"></div>
               <div className="p-8">
                 <div className="flex justify-between items-start mb-6">
-                  <span className="bg-green-100 text-green-800 px-4 py-1.5 rounded-full font-bold uppercase tracking-wider text-sm flex items-center gap-2">
-                    <Volume2 className="w-4 h-4" /> Em Atendimento
+                  <span className={`${senhaAtual.status === 'chamada' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'} px-4 py-1.5 rounded-full font-bold uppercase tracking-wider text-sm flex items-center gap-2`}>
+                    <Volume2 className="w-4 h-4" /> {senhaAtual.status === 'chamada' ? 'Chamando...' : 'Em Atendimento'}
                   </span>
                   <div className="text-right">
                     <div className="text-4xl font-bold text-gray-900 tabular-nums">{senhaAtual.numero}</div>
@@ -202,12 +203,22 @@ export default function Atendente() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => finalizarAtendimento(senhaAtual.id)}
-                    className="bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-green-200 transition-all active:scale-95 flex items-center justify-center gap-3"
-                  >
-                    <CheckCircle className="w-6 h-6" /> Finalizar
-                  </button>
+                  {senhaAtual.status === 'chamada' ? (
+                    <button
+                      onClick={() => iniciarAtendimento(senhaAtual.id)}
+                      className="bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-green-200 transition-all active:scale-95 flex items-center justify-center gap-3"
+                    >
+                      <CheckCircle className="w-6 h-6" /> Iniciar Atendimento
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => finalizarAtendimento(senhaAtual.id)}
+                      className="bg-red-500 hover:bg-red-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-red-200 transition-all active:scale-95 flex items-center justify-center gap-3"
+                    >
+                      <CheckCircle className="w-6 h-6" /> Finalizar
+                    </button>
+                  )}
+
                   <button
                     onClick={repetirSenha}
                     className="bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-3"

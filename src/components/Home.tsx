@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tv, UserCircle, TicketPlus, Shield, BarChart3, ArrowRight } from 'lucide-react';
+import { Tv, UserCircle, TicketPlus, Shield, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Home() {
@@ -25,7 +25,7 @@ export default function Home() {
     {
       id: 'gerador',
       path: '/gerador',
-      title: 'Gerador de Senhas',
+      title: 'Recepção',
       description: 'Triagem e emissão de tickets',
       icon: TicketPlus,
       color: 'bg-secondary-600',
@@ -38,14 +38,7 @@ export default function Home() {
       icon: Shield,
       color: 'bg-secondary-800',
     },
-    {
-      id: 'dashboard',
-      path: '/dashboard',
-      title: 'Dashboard',
-      description: 'Monitoramento e estatísticas',
-      icon: BarChart3,
-      color: 'bg-primary-500',
-    },
+
   ];
 
   return (

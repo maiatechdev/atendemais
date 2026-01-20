@@ -5,7 +5,7 @@ import PainelPublico from "./components/PainelPublico";
 import Atendente from "./components/Atendente";
 import GeradorSenhas from "./components/GeradorSenhas";
 import Administrador from "./components/Administrador";
-import Dashboard from "./components/Dashboard";
+
 import { SenhasProvider } from "./context/SenhasContext";
 
 export default function App() {
@@ -19,7 +19,7 @@ export default function App() {
             <Route path="/atendente" element={<Atendente />} />
             <Route path="/gerador" element={<GeradorSenhas />} />
             <Route path="/admin" element={<Administrador />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+
             {/* Fallback route */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

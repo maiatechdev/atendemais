@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tv, UserCircle, TicketPlus, Shield, BarChart3, ArrowRight } from 'lucide-react';
+import { Tv, UserCircle, TicketPlus, Shield, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Home() {
@@ -25,7 +25,7 @@ export default function Home() {
     {
       id: 'gerador',
       path: '/gerador',
-      title: 'Gerador de Senhas',
+      title: 'Recepção',
       description: 'Triagem e emissão de tickets',
       icon: TicketPlus,
       color: 'bg-secondary-600',
@@ -38,14 +38,7 @@ export default function Home() {
       icon: Shield,
       color: 'bg-secondary-800',
     },
-    {
-      id: 'dashboard',
-      path: '/dashboard',
-      title: 'Dashboard',
-      description: 'Monitoramento e estatísticas',
-      icon: BarChart3,
-      color: 'bg-primary-500',
-    },
+
   ];
 
   return (
@@ -75,7 +68,13 @@ export default function Home() {
           {modules.map(module => (
             <button
               key={module.id}
-              onClick={() => navigate(module.path)}
+              onClick={() => {
+                if (module.id === 'painel-publico') {
+                  window.open(module.path, 'PainelPublico', 'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
+                } else {
+                  navigate(module.path);
+                }
+              }}
               className="group bg-white p-8 rounded-2xl shadow-soft hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-secondary-100 flex flex-col items-start text-left relative overflow-hidden"
             >
               <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity`}>

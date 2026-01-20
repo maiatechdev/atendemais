@@ -19,6 +19,12 @@ export interface Senha {
   horaFinalizacao?: Date;
 }
 
+export interface Servico {
+  id: string;
+  nome: string;
+  ativo: boolean;
+}
+
 export interface Usuario {
   id: string;
   nome: string;
@@ -27,6 +33,7 @@ export interface Usuario {
   isAdmin?: boolean;
   guiche?: number;
   tiposAtendimento?: any; // JSON string from DB, parsed manually if needed, or string array in UI
+  online?: boolean; // Real-time status
 }
 
 interface ChamarSenhaOptions {
@@ -42,14 +49,22 @@ interface SenhasContextType {
   ultimasSenhas: Senha[];
   gerarSenha: (nome: string, tipo: TipoAtendimento, prioridade: Prioridade) => Promise<Senha>;
   chamarSenha: (options: ChamarSenhaOptions) => void;
+  iniciarAtendimento: (senhaId: string) => void;
   finalizarAtendimento: (senhaId: string) => void;
   cancelarSenha: (senhaId: string) => void;
+  naoApareceu: (senhaId: string) => void;
   repetirSenha: () => void;
   // Admin Methods
   adicionarUsuario: (usuario: Omit<Usuario, 'id'>) => void;
   editarUsuario: (id: string, usuario: Partial<Usuario>) => void;
   excluirUsuario: (id: string) => void;
   resetarFila: () => void;
+  // Services Methods
+  servicos: Servico[];
+  criarServico: (nome: string) => void;
+  excluirServico: (id: string) => void;
+  toggleServico: (id: string) => void;
+
   login: (email: string, senha: string) => Promise<{ success: boolean; user?: any; error?: string }>;
 }
 
@@ -77,6 +92,7 @@ interface SyncMessage {
 export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [senhas, setSenhas] = useState<Senha[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [servicos, setServicos] = useState<Servico[]>([]);
   const [senhaAtual, setSenhaAtual] = useState<Senha | null>(null);
   const [ultimasSenhas, setUltimasSenhas] = useState<Senha[]>([]);
   const socketRef = React.useRef<Socket | null>(null);
@@ -98,6 +114,15 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setUsuarios(parsedUsers);
         }
       });
+
+      // Fetch initial services
+      socket.emit('admin_get_services', (resp: any) => {
+        if (resp.success) setServicos(resp.data);
+      });
+    });
+
+    socket.on('servicesUpdated', (updatedServices: Servico[]) => {
+      setServicos(updatedServices);
     });
 
     socket.on('stateUpdated', (payload: SyncMessage['payload']) => {
@@ -163,9 +188,21 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const iniciarAtendimento = (senhaId: string) => {
+    if (socketRef.current) {
+      socketRef.current.emit('update_ticket_status', { id: senhaId, status: 'atendendo' });
+    }
+  };
+
   const cancelarSenha = (senhaId: string) => {
     if (socketRef.current) {
       socketRef.current.emit('update_ticket_status', { id: senhaId, status: 'cancelada' });
+    }
+  };
+
+  const naoApareceu = (senhaId: string) => {
+    if (socketRef.current) {
+      socketRef.current.emit('no_show_ticket', { id: senhaId });
     }
   };
 
@@ -222,6 +259,18 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const criarServico = (nome: string) => {
+    if (socketRef.current) socketRef.current.emit('admin_create_service', nome);
+  };
+
+  const excluirServico = (id: string) => {
+    if (socketRef.current) socketRef.current.emit('admin_delete_service', id);
+  };
+
+  const toggleServico = (id: string) => {
+    if (socketRef.current) socketRef.current.emit('admin_toggle_service', id);
+  };
+
   const login = (email: string, senha: string): Promise<{ success: boolean; user?: any; error?: string }> => {
     return new Promise((resolve) => {
       if (!socketRef.current) {
@@ -249,13 +298,19 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ultimasSenhas,
         gerarSenha,
         chamarSenha,
+        iniciarAtendimento,
         finalizarAtendimento,
         cancelarSenha,
+        naoApareceu,
         adicionarUsuario,
         editarUsuario,
         excluirUsuario,
         repetirSenha,
         resetarFila,
+        servicos,
+        criarServico,
+        excluirServico,
+        toggleServico,
         login
       }}
     >

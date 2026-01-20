@@ -4,7 +4,7 @@ import { useSenhas, type TipoAtendimento, type Prioridade } from '../context/Sen
 import { useNavigate } from 'react-router-dom';
 
 export default function GeradorSenhas() {
-  const { gerarSenha, senhas, ultimasSenhas, login, usuarios } = useSenhas();
+  const { gerarSenha, senhas, ultimasSenhas, login, usuarios, servicos } = useSenhas();
   const navigate = useNavigate();
 
   // Auth State
@@ -15,19 +15,21 @@ export default function GeradorSenhas() {
 
   // App State
   const [nome, setNome] = useState('');
-  const [tipo, setTipo] = useState<TipoAtendimento>('Cadastro Novo');
+  const [tipo, setTipo] = useState<string>(''); // Inicialmente vazio, será setado com o primeiro ativo
   const [prioridade, setPrioridade] = useState<Prioridade>('normal');
   const [senhaGerada, setSenhaGerada] = useState<string | null>(null);
   const [mostrarSucesso, setMostrarSucesso] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const tiposAtendimento: TipoAtendimento[] = [
-    'Cadastro Novo',
-    'Atualização',
-    'Informações',
-    'Benefícios',
-    'Documentação',
-  ];
+  // Inicializa o tipo com o primeiro serviço ativo se disponível
+  React.useEffect(() => {
+    const ativos = servicos.filter(s => s.ativo);
+    if (!tipo && ativos.length > 0) {
+      setTipo(ativos[0].nome);
+    }
+  }, [servicos, tipo]);
+
+  const tiposAtivos = servicos.filter(s => s.ativo);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +41,7 @@ export default function GeradorSenhas() {
       // Verificar permissão (Gerador ou Admin)
       const fullUser = usuarios.find(u => u.id === response.user.id);
 
-      if (fullUser && (fullUser.funcao === 'Gerador' || fullUser.isAdmin)) {
+      if (fullUser && (fullUser.funcao === 'Gerador' || fullUser.funcao === 'Administrador' || fullUser.isAdmin)) {
         setIsAuthenticated(true);
         setLoginError('');
       } else {
@@ -61,7 +63,7 @@ export default function GeradorSenhas() {
     if (nome.trim()) {
       setIsSubmitting(true);
       try {
-        const senha = await gerarSenha(nome, tipo, prioridade);
+        const senha = await gerarSenha(nome, tipo as any, prioridade);
         setSenhaGerada(senha.numero);
         setMostrarSucesso(true);
 
@@ -93,7 +95,7 @@ export default function GeradorSenhas() {
         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
           <div className="text-center mb-6">
             <TicketPlus className="w-12 h-12 text-primary-600 mx-auto mb-2" />
-            <h1 className="text-2xl font-bold text-secondary-900">Emissão de Senhas</h1>
+            <h1 className="text-2xl font-bold text-secondary-900">Recepção</h1>
             <p className="text-secondary-500">Login obrigatório</p>
           </div>
 
@@ -158,7 +160,7 @@ export default function GeradorSenhas() {
           </div>
 
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-secondary-900">Emissão de Senhas</h1>
+            <h1 className="text-2xl font-bold text-secondary-900">Recepção</h1>
             <p className="text-secondary-500 text-sm">Triagem e Atendimento</p>
           </div>
 
@@ -200,18 +202,18 @@ export default function GeradorSenhas() {
               <div className="space-y-2">
                 <label className="block text-secondary-700 text-sm font-semibold uppercase tracking-wide">Serviço Desejado</label>
                 <div className="grid grid-cols-1 gap-3">
-                  {tiposAtendimento.map((t) => (
+                  {tiposAtivos.map((t) => (
                     <button
-                      key={t}
+                      key={t.id}
                       type="button"
-                      onClick={() => setTipo(t)}
-                      className={`px-5 py-3 rounded-xl border-2 text-left transition-all flex items-center justify-between ${tipo === t
+                      onClick={() => setTipo(t.nome)}
+                      className={`px-5 py-3 rounded-xl border-2 text-left transition-all flex items-center justify-between ${tipo === t.nome
                         ? 'border-primary-600 bg-primary-50 text-primary-700 shadow-sm'
                         : 'border-transparent bg-secondary-100 text-secondary-600 hover:bg-secondary-200/70'
                         }`}
                     >
-                      <span className="font-medium">{t}</span>
-                      {tipo === t && <CheckCircle className="w-5 h-5" />}
+                      <span className="font-medium">{t.nome}</span>
+                      {tipo === t.nome && <CheckCircle className="w-5 h-5" />}
                     </button>
                   ))}
                 </div>

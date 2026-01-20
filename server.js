@@ -44,6 +44,59 @@ async function getFullState() {
     };
 }
 
+async function checkDailyReset() {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const configDate = await prisma.config.findUnique({ where: { key: 'lastResetDate' } });
+
+        if (!configDate || configDate.value !== today) {
+            console.log(`[Daily Reset] Detectada mudança de dia: ${configDate?.value} -> ${today}`);
+
+            // 1. Reset Counters
+            await prisma.config.upsert({
+                where: { key: 'contadorNormal' },
+                update: { value: '1' },
+                create: { key: 'contadorNormal', value: '1' }
+            });
+
+            await prisma.config.upsert({
+                where: { key: 'contadorPrioritaria' },
+                update: { value: '1' },
+                create: { key: 'contadorPrioritaria', value: '1' }
+            });
+
+            // 2. Clear Active Queue (preserve history, just cancel pending)
+            const { count } = await prisma.senha.updateMany({
+                where: {
+                    status: { in: ['aguardando', 'chamada', 'atendendo'] }
+                },
+                data: {
+                    status: 'cancelada',
+                    horaFinalizacao: new Date()
+                }
+            });
+
+            if (count > 0) {
+                console.log(`[Daily Reset] ${count} senhas pendentes foram canceladas.`);
+            }
+
+            // 3. Update Last Reset Date
+            await prisma.config.upsert({
+                where: { key: 'lastResetDate' },
+                update: { value: today },
+                create: { key: 'lastResetDate', value: today }
+            });
+
+            console.log('[Daily Reset] Contadores reiniciados para 001.');
+            return true; // Reset happened
+        }
+        return false; // No reset needed
+    } catch (e) {
+        console.error("Erro no Daily Reset:", e);
+        return false;
+    }
+}
+
 async function startServer() {
     // Inicializar contadores se não existirem
     try {
@@ -67,9 +120,33 @@ async function startServer() {
                 }
             });
         }
+
+        // Inicializar Serviços Padrão
+        const servicesCount = await prisma.servico.count();
+        if (servicesCount === 0) {
+            console.log('Inicializando serviços padrão...');
+            const defaultServices = [
+                'Cadastro Novo',
+                'Atualização',
+                'Informações',
+                'Benefícios',
+                'Documentação'
+            ];
+            for (const nome of defaultServices) {
+                await prisma.servico.create({ data: { nome } });
+            }
+        }
     } catch (e) {
         console.error("Erro na inicialização do DB:", e);
     }
+
+    // Daily Reset Check
+    await checkDailyReset();
+
+    // Check every hour
+    setInterval(() => {
+        checkDailyReset();
+    }, 60 * 60 * 1000);
 
     const app = express();
     const httpServer = createServer(app);
@@ -86,6 +163,9 @@ async function startServer() {
     });
 
     app.use(vite.middlewares);
+
+    const onlineUsers = new Map(); // socketId -> userId
+    const connectedUserIds = new Set();
 
     io.on('connection', async (socket) => {
         console.log('Cliente conectado:', socket.id);
@@ -110,6 +190,15 @@ async function startServer() {
                 });
 
                 if (user) {
+                    // Track user
+                    onlineUsers.set(socket.id, user.id);
+                    connectedUserIds.add(user.id);
+
+                    // Broadcast user status update
+                    const allUsers = await prisma.usuario.findMany();
+                    const usersWithStatus = allUsers.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
+                    io.emit('usersUpdated', usersWithStatus);
+
                     if (callback) callback({ success: true, user: { id: user.id, nome: user.nome, email: user.email, isAdmin: user.isAdmin } });
                 } else {
                     if (callback) callback({ success: false, error: 'Credenciais inválidas' });
@@ -159,63 +248,84 @@ async function startServer() {
             }
         });
 
-        // 3. Handle 'call_ticket'
+        // 3. Handle 'call_ticket' - ATOMIC VERSION
         socket.on('call_ticket', async (data) => {
             try {
                 const { guiche, atendente, tiposPermitidos } = data;
 
-                // Busca fila no DB
-                const todasSenhas = await prisma.senha.findMany({
-                    where: { status: 'aguardando' }
+                // Transação Implícita para garantir consistência
+                // Primeiro, encontramos o ID do melhor candidato (o "Garfo") 
+                // baseado na prioridade e horário, mas sem travar ainda.
+
+                // Construção dinâmica do filtro
+                const whereClause = {
+                    status: 'aguardando',
+                    ...(tiposPermitidos && tiposPermitidos.length > 0
+                        ? { tipo: { in: tiposPermitidos } }
+                        : {})
+                };
+
+                // Busca TODOS os candidatos para ordenar corretamente na memória (Prisma e SQLite têm limitações de sort complexo misto)
+                // Nota: Em sistemas gigantes, isso seria paginado, mas para fila local é rápido.
+                const candidatos = await prisma.senha.findMany({
+                    where: whereClause,
+                    orderBy: [
+                        { prioridade: 'desc' }, // 'prioritaria' > 'normal' (alfabético inverso P > N... cuidado, vamos ajustar)
+                        // Ajuste: Vamos ordenar manualmente no JS para garantir a regra de negócio exata
+                    ]
                 });
 
-                const fila = todasSenhas
-                    .filter(s => {
-                        if (tiposPermitidos && tiposPermitidos.length > 0) {
-                            return tiposPermitidos.includes(s.tipo);
+                // Ordenação Robustez (Regra de Negócio):
+                // 1. Prioridade (prioritaria ganha de normal)
+                // 2. Ordem de Chegada (horaGeracao)
+                const filaOrdenada = candidatos.sort((a, b) => {
+                    if (a.prioridade === b.prioridade) {
+                        return new Date(a.horaGeracao).getTime() - new Date(b.horaGeracao).getTime();
+                    }
+                    return a.prioridade === 'prioritaria' ? -1 : 1;
+                });
+
+                if (filaOrdenada.length === 0) return; // Ninguém na fila
+
+                // TENTATIVA ATÔMICA (O "Pulo do Gato" para evitar o Jantar dos Filósofos)
+                // Tentamos pegar o primeiro. Se falhar (alguém pegou milissegundos antes),
+                // o update retornará count: 0.
+
+                let ticketChamado = null;
+
+                for (const candidato of filaOrdenada) {
+                    // Update atômico: "Atualize para MIM, mas SÓ SE ainda for 'aguardando'"
+                    const result = await prisma.senha.updateMany({
+                        where: {
+                            id: candidato.id,
+                            status: 'aguardando' // A Cláusula de Segurança
+                        },
+                        data: {
+                            status: 'chamada',
+                            guiche,
+                            atendente,
+                            horaChamada: new Date()
                         }
-                        return true;
-                    })
-                    .sort((a, b) => {
-                        if (a.prioridade === b.prioridade) {
-                            return new Date(a.horaGeracao).getTime() - new Date(b.horaGeracao).getTime();
-                        }
-                        return a.prioridade === 'prioritaria' ? -1 : 1;
                     });
 
-                if (fila.length === 0) return;
-
-                const proximaSenha = fila[0];
-
-                // Atualiza status no DB
-                await prisma.senha.update({
-                    where: { id: proximaSenha.id },
-                    data: {
-                        status: 'chamada',
-                        guiche,
-                        atendente,
-                        horaChamada: new Date()
+                    if (result.count > 0) {
+                        // Sucesso! Conseguimos pegar esse ticket exclusivamente.
+                        // Agora buscamos os dados atualizados para exibir.
+                        ticketChamado = await prisma.senha.findUnique({ where: { id: candidato.id } });
+                        break; // Sai do loop, já comemos!
                     }
-                });
+                    // Se count == 0, significa que outro "filósofo" pegou esse ticket nesse meio tempo.
+                    // O loop continua e tenta o próximo da fila imediatamente.
+                }
 
-                const newState = await getFullState();
-                io.emit('stateUpdated', newState);
+                if (ticketChamado) {
+                    const newState = await getFullState();
+                    io.emit('stateUpdated', newState);
+                    console.log(`Senha ${ticketChamado.numero} chamada no Guichê ${guiche} (Atômico)`);
+                }
 
-                // Timeout para 'atendendo'
-                setTimeout(async () => {
-                    // Verifica se ainda está 'chamada' antes de mudar
-                    const check = await prisma.senha.findUnique({ where: { id: proximaSenha.id } });
-                    if (check && check.status === 'chamada') {
-                        await prisma.senha.update({
-                            where: { id: proximaSenha.id },
-                            data: { status: 'atendendo' }
-                        });
-                        const updatedState = await getFullState();
-                        io.emit('stateUpdated', updatedState);
-                    }
-                }, 2000);
             } catch (e) {
-                console.error("Erro em call_ticket:", e);
+                console.error("Erro em call_ticket (Atomic):", e);
             }
         });
 
@@ -227,7 +337,9 @@ async function startServer() {
                     where: { id },
                     data: {
                         status,
-                        horaFinalizacao: new Date()
+                        status,
+                        horaFinalizacao: status === 'concluida' ? new Date() : undefined,
+                        horaInicio: status === 'atendendo' ? new Date() : undefined
                     }
                 });
                 const newState = await getFullState();
@@ -237,7 +349,53 @@ async function startServer() {
             }
         });
 
-        // 5. Handle 'repeat_ticket'
+        // 5. Handle 'no_show_ticket' (Não apareceu)
+        socket.on('no_show_ticket', async (data) => {
+            try {
+                const { id } = data;
+                const ticket = await prisma.senha.findUnique({ where: { id } });
+
+                if (ticket) {
+                    const novasTentativas = ticket.tentativas + 1;
+                    const maxTentativas = 3;
+
+                    if (novasTentativas >= maxTentativas) {
+                        // Max attempts reached -> Cancel
+                        await prisma.senha.update({
+                            where: { id },
+                            data: {
+                                status: 'cancelada',
+                                tentativas: novasTentativas,
+                                horaFinalizacao: new Date()
+                            }
+                        });
+                        console.log(`[No Show] Senha ${ticket.numero} cancelada após ${novasTentativas} tentativas.`);
+                    } else {
+                        // Back to queue
+                        await prisma.senha.update({
+                            where: { id },
+                            data: {
+                                status: 'aguardando', // Return to queue
+                                tentativas: novasTentativas,
+                                horaChamada: null, // Reset call time so it sorts correctly by generation time (or keep it?) 
+                                // Let's keep generation time as sort key, so it goes back to its place in line.
+                                // We might want to clear atendente/guiche to allow others to pick it up?
+                                atendente: null,
+                                guiche: null
+                            }
+                        });
+                        console.log(`[No Show] Senha ${ticket.numero} devolvida à fila. Tentativa ${novasTentativas}/${maxTentativas}.`);
+                    }
+
+                    const newState = await getFullState();
+                    io.emit('stateUpdated', newState);
+                }
+            } catch (e) {
+                console.error("Erro no_show_ticket:", e);
+            }
+        });
+
+        // 6. Handle 'repeat_ticket'
         socket.on('repeat_ticket', async () => {
             try {
                 const current = await prisma.senha.findFirst({
@@ -283,8 +441,8 @@ async function startServer() {
         socket.on('admin_get_users', async (callback) => {
             try {
                 const users = await prisma.usuario.findMany();
-                // Filter out password from response if needed, but for now sending all
-                if (callback) callback({ success: true, data: users });
+                const usersWithStatus = users.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
+                if (callback) callback({ success: true, data: usersWithStatus });
             } catch (e) {
                 if (callback) callback({ success: false, error: e.message });
             }
@@ -300,7 +458,7 @@ async function startServer() {
                         email,
                         senha: senha || '123456', // Default password if missing
                         funcao,
-                        isAdmin: !!isAdmin, // Force boolean
+                        isAdmin: funcao === 'Administrador', // Enforce single admin type logic
                         guiche: parseInt(guiche) || null,
                         tiposAtendimento: JSON.stringify(tiposAtendimento || [])
                     }
@@ -320,6 +478,12 @@ async function startServer() {
         // 9. Delete User
         socket.on('admin_delete_user', async (id, callback) => {
             try {
+                const userToDelete = await prisma.usuario.findUnique({ where: { id } });
+                if (userToDelete && userToDelete.email === 'lucas.andr97@gmail.com') {
+                    if (callback) callback({ success: false, error: 'Este usuário é protegido e não pode ser excluído.' });
+                    return;
+                }
+
                 await prisma.usuario.delete({ where: { id } });
 
                 // Broadcast updated user list
@@ -333,7 +497,97 @@ async function startServer() {
             }
         });
 
-        socket.on('disconnect', () => { });
+        // 10. Service Management
+        socket.on('admin_get_services', async (callback) => {
+            try {
+                const services = await prisma.servico.findMany();
+                if (callback) callback({ success: true, data: services });
+            } catch (e) {
+                if (callback) callback({ success: false, error: e.message });
+            }
+        });
+
+        socket.on('admin_create_service', async (nome, callback) => {
+            try {
+                const newService = await prisma.servico.create({ data: { nome } });
+                const services = await prisma.servico.findMany();
+                io.emit('servicesUpdated', services);
+                if (callback) callback({ success: true, data: newService });
+            } catch (e) {
+                if (callback) callback({ success: false, error: e.message });
+            }
+        });
+
+        socket.on('admin_delete_service', async (id, callback) => {
+            try {
+                await prisma.servico.delete({ where: { id } });
+                const services = await prisma.servico.findMany();
+                io.emit('servicesUpdated', services);
+                if (callback) callback({ success: true });
+            } catch (e) {
+                if (callback) callback({ success: false, error: e.message });
+            }
+        });
+
+        socket.on('admin_toggle_service', async (id, callback) => {
+            try {
+                const s = await prisma.servico.findUnique({ where: { id } });
+                if (s) {
+                    await prisma.servico.update({
+                        where: { id },
+                        data: { ativo: !s.ativo }
+                    });
+                    const services = await prisma.servico.findMany();
+                    io.emit('servicesUpdated', services);
+                    if (callback) callback({ success: true });
+                }
+            } catch (e) {
+                if (callback) callback({ success: false, error: e.message });
+            }
+        });
+
+        // 11. Attendant Session Update (Self-Config)
+        socket.on('attendant_update_session', async (data, callback) => {
+            try {
+                const { userId, guiche, tiposAtendimento } = data;
+
+                await prisma.usuario.update({
+                    where: { id: userId },
+                    data: {
+                        guiche: parseInt(guiche),
+                        tiposAtendimento: JSON.stringify(tiposAtendimento || [])
+                    }
+                });
+
+                // Broadcast updated user list
+                const users = await prisma.usuario.findMany();
+                const usersWithStatus = users.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
+                io.emit('usersUpdated', usersWithStatus);
+
+                if (callback) callback({ success: true });
+            } catch (e) {
+                console.error("Erro attendant_update_session:", e);
+                if (callback) callback({ success: false, error: e.message });
+            }
+        });
+
+        socket.on('disconnect', async () => {
+            if (onlineUsers.has(socket.id)) {
+                const userId = onlineUsers.get(socket.id);
+                onlineUsers.delete(socket.id);
+
+                // Check if user still has other connections
+                const activeSockets = Array.from(onlineUsers.values());
+                if (!activeSockets.includes(userId)) {
+                    connectedUserIds.delete(userId);
+                }
+
+                // Broadcast update
+                const users = await prisma.usuario.findMany();
+                const usersWithStatus = users.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
+                io.emit('usersUpdated', usersWithStatus);
+            }
+        });
     });
 
     const PORT = 3001;

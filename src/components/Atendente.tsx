@@ -4,7 +4,7 @@ import { Phone, CheckCircle, Volume2, Clock, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Atendente() {
-  const { senhas, usuarios, servicos, chamarSenha, iniciarAtendimento, finalizarAtendimento, cancelarSenha, repetirSenha, login, atualizarSessaoAtendente } = useSenhas();
+  const { senhas, usuarios, servicos, chamarSenha, iniciarAtendimento, finalizarAtendimento, cancelarSenha, repetirSenha, login, atualizarSessaoAtendente, naoApareceu } = useSenhas();
   const navigate = useNavigate();
 
   // Auth States
@@ -232,6 +232,7 @@ export default function Atendente() {
                       <CheckCircle className="w-6 h-6" /> Finalizar
                     </button>
                   )}
+
                 </div>
               </div>
             </div>

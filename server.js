@@ -324,6 +324,9 @@ async function startServer() {
                     console.log(`Senha ${ticketChamado.numero} chamada no Guichê ${guiche} (Atômico)`);
                 }
 
+                // Timeout para 'atendendo'
+                // Auto-timeout removed to allow manual start
+                // setTimeout(async () => { ... }, 2000);
             } catch (e) {
                 console.error("Erro em call_ticket (Atomic):", e);
             }

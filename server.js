@@ -208,11 +208,29 @@ async function startServer() {
             }
         });
 
+        socket.on('logout', async () => {
+            if (onlineUsers.has(socket.id)) {
+                const userId = onlineUsers.get(socket.id);
+                onlineUsers.delete(socket.id);
+
+                // Check if user still has other connections
+                const activeSockets = Array.from(onlineUsers.values());
+                if (!activeSockets.includes(userId)) {
+                    connectedUserIds.delete(userId);
+                }
+
+                // Broadcast update
+                const users = await prisma.usuario.findMany();
+                const usersWithStatus = users.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
+                io.emit('usersUpdated', usersWithStatus);
+            }
+        });
+
         // 2. Handle 'request_ticket'
         socket.on('request_ticket', async (data, callback) => {
             console.log('Recebido request_ticket:', data);
             try {
-                const { nome, tipo, prioridade } = data;
+                const { nome, tipo, prioridade, cpf, telefone, bairro } = data; // Added citizen info
 
                 const configKey = prioridade === 'prioritaria' ? 'contadorPrioritaria' : 'contadorNormal';
                 const prefixo = prioridade === 'prioritaria' ? 'P' : 'N';
@@ -232,6 +250,9 @@ async function startServer() {
                         nome,
                         tipo,
                         prioridade,
+                        cpf,
+                        telefone,
+                        bairro,
                         status: 'aguardando',
                         horaGeracao: new Date()
                     }
@@ -251,7 +272,7 @@ async function startServer() {
         // 3. Handle 'call_ticket' - ATOMIC VERSION
         socket.on('call_ticket', async (data) => {
             try {
-                const { guiche, atendente, tiposPermitidos } = data;
+                const { guiche, atendente, tiposPermitidos, tipoGuiche } = data; // Added tipoGuiche
 
                 // Transação Implícita para garantir consistência
                 // Primeiro, encontramos o ID do melhor candidato (o "Garfo") 
@@ -304,6 +325,7 @@ async function startServer() {
                             status: 'chamada',
                             guiche,
                             atendente,
+                            tipoGuiche: tipoGuiche || 'Guichê', // Save tipoGuiche
                             horaChamada: new Date()
                         }
                     });
@@ -552,12 +574,13 @@ async function startServer() {
         // 11. Attendant Session Update (Self-Config)
         socket.on('attendant_update_session', async (data, callback) => {
             try {
-                const { userId, guiche, tiposAtendimento } = data;
+                const { userId, guiche, tiposAtendimento, tipoGuiche } = data;
 
                 await prisma.usuario.update({
                     where: { id: userId },
                     data: {
                         guiche: parseInt(guiche),
+                        tipoGuiche: tipoGuiche || 'Guichê',
                         tiposAtendimento: JSON.stringify(tiposAtendimento || [])
                     }
                 });

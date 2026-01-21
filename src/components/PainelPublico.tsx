@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Volume2, Home, Clock, AlertCircle } from 'lucide-react';
 import { useSenhas } from '../context/SenhasContext';
 import { useNavigate } from 'react-router-dom';
+import logo from '../assets/logo.svg';
 
 export default function PainelPublico() {
   const { senhaAtual, ultimasSenhas } = useSenhas();
@@ -34,7 +35,7 @@ export default function PainelPublico() {
     if (!ticket) return;
 
     if ('speechSynthesis' in window) {
-      const text = `Senha ${ticket.numero}, ${ticket.nome}, Guichê ${ticket.guiche}`;
+      const text = `Senha ${ticket.numero}, ${ticket.nome}, ${ticket.tipoGuiche || 'Guichê'} ${ticket.guiche}`;
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       const voices = window.speechSynthesis.getVoices();
@@ -58,8 +59,8 @@ export default function PainelPublico() {
       {/* Header */}
       <header className="flex items-start justify-between mb-12">
         <div className="flex items-center gap-6">
-          <div className="w-20 h-20 bg-primary-600 rounded-2xl flex items-center justify-center shadow-lg shadow-primary-900/50">
-            <span className="text-4xl font-bold">A+</span>
+          <div className="w-24 h-24 bg-white/10 rounded-2xl flex items-center justify-center shadow-lg shadow-black/20 p-4">
+            <img src={logo} alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <h1 className="text-4xl font-bold tracking-tight">Painel de Chamadas</h1>
@@ -117,7 +118,7 @@ export default function PainelPublico() {
                     <p className="text-4xl text-white font-semibold truncate px-4">{senhaAtual.nome}</p>
                   </div>
                   <div className="bg-primary-600 rounded-3xl p-8 shadow-lg shadow-primary-900/50">
-                    <h3 className="text-primary-200 text-xl font-medium mb-2">Guichê</h3>
+                    <h3 className="text-primary-200 text-xl font-medium mb-2">{senhaAtual.tipoGuiche || 'Guichê'}</h3>
                     <p className="text-6xl text-white font-bold">{senhaAtual.guiche}</p>
                   </div>
                 </div>
@@ -159,7 +160,7 @@ export default function PainelPublico() {
               >
                 <div>
                   <div className="text-3xl font-bold text-white mb-1">{senha.numero}</div>
-                  <div className="text-secondary-400 text-sm font-medium">Guichê {senha.guiche}</div>
+                  <div className="text-secondary-400 text-sm font-medium">{senha.tipoGuiche || 'Guichê'} {senha.guiche}</div>
                 </div>
                 <div className="text-right">
                   {senha.prioridade === 'prioritaria' && (

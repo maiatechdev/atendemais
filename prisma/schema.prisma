@@ -22,6 +22,10 @@ model Senha {
   horaInicio      DateTime?
   horaFinalizacao DateTime?
   tentativas      Int      @default(0)
+  tipoGuiche      String?  @default("Guichê") // Guichê ou Sala
+  cpf             String?
+  telefone        String?
+  bairro          String?
 }
 
 model Usuario {
@@ -32,6 +36,7 @@ model Usuario {
   isAdmin          Boolean @default(false)
   funcao           String
   guiche           Int?
+  tipoGuiche       String? @default("Guichê")
   tiposAtendimento String? // Armazenado como JSON string
 }
 

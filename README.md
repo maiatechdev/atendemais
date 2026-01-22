@@ -17,7 +17,7 @@ O projeto utiliza uma arquitetura **Híbrida (Monorepo)**, unindo a performance 
 
 ---
 
-## �️ Módulos do Sistema
+## 🖥️ Módulos do Sistema
 
 ### 1. 📺 Painel Público (TV)
 *   **Rota**: `/painel`
@@ -114,11 +114,3 @@ Para garantir que o sistema não feche acidentalmente, use o **PM2** (Gerenciado
 O sistema cria um administrador padrão na primeira execução:
 *   **Email**: `admin`
 *   **Senha**: `admin`
-
----
-
-## � Scripts Auxiliares (Windows)
-
-Na pasta raiz, existem atalhos para facilitar a sincronização com o Git de forma visual:
-*   `salvar_no_github.bat`: Envia suas alterações para a nuvem.
-*   `baixar_do_github.bat`: Baixa atualizações da nuvem para o PC.

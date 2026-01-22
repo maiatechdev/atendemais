@@ -2,161 +2,123 @@
 
 Sistema moderno de gerenciamento de filas e atendimento, desenvolvido para simular um ambiente real de triagem e chamada de senhas (ex: prefeituras, clínicas, poupatempo).
 
-## 🚀 Tecnologias Utilizadas
-
-O projeto utiliza uma arquitetura **Híbrida (Monorepo)**, onde o Frontend (React) e o Backend (Node.js) convivem e rodam juntos.
-
-### Frontend (Interface)
--   **React + Vite**: Para uma interface super rápida e responsiva.
--   **Tailwind CSS**: Para estilização moderna e bonita.
--   **Lucide React**: Ícones visuais (impressora, check, usuários).
--   **Socket.io Client**: Para receber atualizações da fila em tempo real (sem precisar dar F5).
-
-### Backend (Servidor)
--   **Node.js + Express**: Servidor web que entrega o site e a API.
--   **Socket.io**: Garante que se uma senha for chamada no "Atendente", ela apareça instantaneamente na "TV" (Painel Público) de todos os computadores.
--   **Prisma ORM**: Gerencia o banco de dados de forma segura e moderna.
--   **SQLite**: Banco de dados leve e portátil (arquivo `prisma/dev.db`), não requer instalação complexa.
+O projeto utiliza uma arquitetura **Híbrida (Monorepo)**, unindo a performance do React (Vite) no frontend com a robustez do Node.js (Express + Socket.io) no backend.
 
 ---
 
-## 📂 Estrutura do Código
+## 🚀 Funcionalidades Principais
 
-### 1. `server.js` (O Coração do Sistema)
-Este é o arquivo principal. Ele:
--   Inicia o servidor na porta 3000.
--   Gerencia as conexões em tempo real (`socket.on`).
--   Conversa com o banco de dados (Salva senhas, busca fila, atualiza status).
--   Possui a lógica de "Broadcast": Quando algo muda, ele avisa todo mundo (`io.emit`).
-
-### 2. `src/context/SenhasContext.tsx`
-É o "cérebro" do Frontend.
--   Mantém o estado local da aplicação (lista de senhas, lista de usuários).
--   Conecta-se ao `server.js` para enviar comandos (ex: `gerarSenha`, `chamarSenha`).
--   Ouve as atualizações do servidor e atualiza a tela automaticamente.
-
-### 3. `src/components/` (As Telas)
--   **Home.tsx**: Menu principal.
--   **PainelPublico.tsx**: A tela da "TV". Mostra a senha atual bem grande e as últimas chamadas. Fala o nome da pessoa chamda.
--   **GeradorSenhas.tsx**: A tela do "Totem". Permite criar senhas (Normal/Prioritária), imprimir e ver o tamanho da fila.
--   **Atendente.tsx**: A tela do funcionário nos guichês. Permite selecionar qual usuário está logado, chamar a próxima senha, finalizar ou cancelar atendimento.
--   **Administrador.tsx**: Painel restrito (Senha: `admin123`). Permite cadastrar novos atendentes, excluir funcionários e zerar a fila do dia.
-
-### 4. `prisma/`
--   **schema.prisma**: Define como os dados são salvos (Tabelas de `Senha`, `Usuario`, `Config`).
--   **dev.db**: O arquivo físico do banco de dados.
+*   **Tempo Real (Real-time)**: Atualizações instantâneas via Socket.io. Se uma senha é chamada, aparece na hora em todas as telas.
+*   **Voz Humanizada**: O Painel Público anuncia as senhas chamadas (ex: "Senha Preferencial 001, Guichê 2").
+*   **Fila Inteligente**: Sistema de prioridades que intercala atendimentos normais e preferenciais automaticamente.
+*   **Monitoramento**: Dashboard ao vivo com métricas de tempo de espera e tamanho da fila.
+*   **Sessão Dinâmica**: Atendentes escolhem seu Guichê/Sala e Serviços no momento do login.
+*   **Persistência**: Dados salvos em banco SQLite, não se perdem ao reiniciar.
 
 ---
 
-## 🛠️ Como Rodar o Projeto
+## �️ Módulos do Sistema
+
+### 1. 📺 Painel Público (TV)
+*   **Rota**: `/painel`
+*   Exibe a senha atual em destaque e o histórico das últimas chamadas.
+*   Toca som de campainha e anuncia a senha por voz.
+
+### 2. 🎫 Gerador de Senhas (Totem)
+*   **Rota**: `/gerador`
+*   Interface touch para o cidadão retirar senha.
+*   Opções: Normal e Prioritário.
+*   Coleta dados opcionais: Nome, CPF, Telefone, Bairro.
+
+### 3. 👩‍💼 Área do Atendente
+*   **Rota**: `/atendente` (Requer Login)
+*   Visualiza a fila em tempo real.
+*   Chama a próxima senha (lógica automática de prioridade).
+*   Inicia e Finaliza atendimentos.
+*   Reporta "Não Apareceu" (devolve para fila após tentativas).
+
+### 4. 🛠️ Painel Administrativo
+*   **Rota**: `/admin` (Acesso restrito)
+*   Gerencia usuários (criar/editar/excluir atendentes).
+*   Gerencia serviços disponíveis.
+*   Visualiza usuários online em tempo real.
+*   Reseta a fila do dia.
+
+---
+
+## 🛠️ Instalação e Execução
 
 ### Pré-requisitos
--   Node.js instalado.
+*   Node.js instalado (v18 ou superior).
 
-### Passo a Passo
-
-1.  **Instalar dependências:**
-    ```bash
-    npm install
-    ```
-
-2.  **Configurar o Banco de Dados (Primeira vez):**
-    ```bash
-    npx prisma migrate dev --name init
-    ```
-
-3.  **Rodar o Servidor:**
-    ```bash
-    node server.js
-    ```
-    Ou, para desenvolvimento (com build automático):
-    ```bash
-    npm run dev
-    ```
-
-4.  **Acessar:**
-    Abra o navegador em `http://localhost:3000`.
-
-### Acessar de Outros Computadores (Rede Local)
-Para usar o sistema em vários computadores (um sendo a TV, outro o Totem, outros os Guichês):
-1.  Descubra o **IP** do computador onde rodou o `node server.js` (no terminal digite `ipconfig` no Windows).
-2.  Nos outros computadores, digite o IP dele no navegador.
-    *   Exemplo: `http://192.168.1.15:3000`
-
-### Sincronização com GitHub (Windows)
-Para facilitar a sincronização, incluímos dois scripts na raiz do projeto:
--   `salvar_no_github.bat`: Clique duas vezes, digite a descrição da mudança, e ele envia para a nuvem.
--   `baixar_do_github.bat`: Clique duas vezes para baixar as atualizações mais recentes do repositório.
-
--   `baixar_do_github.bat`: Clique duas vezes para baixar as atualizações mais recentes do repositório.
-
----
-
-## 💻 Instalação em Outro Computador
-
-Se você quiser baixar o projeto em um computador novo:
-
-1.  **Baixar o Código (Clone):**
-    Abra o terminal na pasta onde quer salvar e digite:
-    ```bash
-    git clone https://github.com/Sonnyzera/atende-.git
-    ```
-2.  **Entrar na Pasta:**
-    ```bash
-    cd atende-
-    ```
-3.  **Instalar Dependências:**
-    (Importantíssimo: baixa a pasta `node_modules`)
-    ```bash
-    npm install
-    ```
-4.  **Criar Banco de Dados:**
-    (Cria o arquivo `dev.db` no novo PC)
-    ```bash
-    npx prisma migrate dev
-    ```
-5.  **Rodar:**
-    ```bash
-    node server.js
-    ```
-
----
-
-## 🔐 Senhas de Acesso
--   **Painel Admin**: `admin123`
-
----
-
-## 📝 Funcionalidades Principais
--   **Persistência**: Se reiniciar o servidor, as senhas e usuários continuam salvos.
--   **Sincronização Real**: O "Gerador" cria uma senha e ela aparece na hora na tela do "Atendente".
--   **Voz**: O Painel Público anuncia "Senha P005, Guichê 2" usando a voz do navegador.
--   **Fila Inteligente**: Prioritários furam a fila dos Normais automaticamente, mas respeitam a ordem de chegada entre si.
-
-
----
-
-## 🚀 Servidor em Produção (Alta Performance)
-
-Para usar o sistema no dia-a-dia (Clinica, Prefeitura, etc), recomendamos usar o modo de produção.
-
-### 1. Gerar Arquivos Otimizados
-Rode este comando sempre que houver atualizações no código:
+### 1. Instalação
+Baixe o projeto e instale as dependências:
 ```bash
-npm run build
+npm install
 ```
-*(Isso cria uma pasta `dist` com o site super leve)*
 
-### 2. Rodar com PM2 (Recomendado)
-O **PM2** mantém o site ligado 24h, mesmo se reiniciar o PC ou fechar a janela.
+### 2. Configurar Banco de Dados
+Prepare o banco SQLite (cria o arquivo `prisma/dev.db`):
+```bash
+npx prisma migrate dev --name init
+```
 
-1.  **Iniciar o Servidor:**
+### 3. Rodar o Projeto
+
+#### 👨‍💻 Modo Desenvolvimento (Para programar)
+Use este modo se estiver alterando o código. Ele tem "Hot Reload" (atualiza sozinho).
+```bash
+npm run dev
+```
+*   Acesse: `http://localhost:3000`
+
+#### 🚀 Modo Produção (Para uso real/Deploy)
+Use este modo para deixar rodando na recepção/triagem. É mais leve e rápido.
+1.  Gere a versão otimizada (apenas uma vez ou após atualizações):
+    ```bash
+    npm run build
+    ```
+2.  Inicie o servidor:
+    ```bash
+    npm start
+    ```
+
+---
+
+## 🤖 Rodando 24h com PM2
+
+Para garantir que o sistema não feche acidentalmente, use o **PM2** (Gerenciador de Processos):
+
+1.  **Instale o PM2 (Globalmente):**
+    ```bash
+    npm install -g pm2
+    ```
+    *(Se der erro de permissão no Windows, abra o PowerShell como Admin)*
+
+2.  **Inicie o Sistema:**
     ```bash
     npx pm2 start npm --name "atende-app" -- start
     ```
 
-2.  **Comandos Úteis:**
-    -   Ver status: `npx pm2 list`
-    -   Reiniciar: `npx pm2 restart atende-app`
-    -   Parar: `npx pm2 stop atende-app`
-    -   Ver logs: `npx pm2 logs`
+3.  **Comandos Úteis:**
+    *   `npx pm2 list` (Ver se está rodando)
+    *   `npx pm2 logs` (Ver o que está acontecendo)
+    *   `npx pm2 restart atende-app` (Reiniciar)
+    *   `npx pm2 stop atende-app` (Parar)
+    *   `npx pm2 save` (Salvar para iniciar com o Windows - pesquise 'pm2 startup windows')
+
+---
+
+## 🔐 Credenciais Padrão
+
+O sistema cria um administrador padrão na primeira execução:
+*   **Email**: `admin`
+*   **Senha**: `admin`
+
+---
+
+## � Scripts Auxiliares (Windows)
+
+Na pasta raiz, existem atalhos para facilitar a sincronização com o Git de forma visual:
+*   `salvar_no_github.bat`: Envia suas alterações para a nuvem.
+*   `baixar_do_github.bat`: Baixa atualizações da nuvem para o PC.

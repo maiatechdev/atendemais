@@ -101,10 +101,3 @@ prisma/*.db-journal
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Local scripts
-*.bat
-
-# Backups
-backups/
-*.bak

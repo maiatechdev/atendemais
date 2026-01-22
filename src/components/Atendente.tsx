@@ -1,13 +1,10 @@
 import React, { useState } from 'react';
 import { useSenhas } from '../context/SenhasContext';
-import { Phone, CheckCircle, Volume2, Clock, AlertCircle, Settings, X, Save } from 'lucide-react';
+import { Phone, CheckCircle, Volume2, Clock, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import LoginLayout from './auth/LoginLayout';
-import LoginForm from './auth/LoginForm';
-import logo from '../assets/logo.svg';
 
 export default function Atendente() {
-  const { senhas, usuarios, servicos, chamarSenha, iniciarAtendimento, finalizarAtendimento, cancelarSenha, repetirSenha, login, logout, atualizarSessaoAtendente, naoApareceu } = useSenhas();
+  const { senhas, usuarios, servicos, chamarSenha, iniciarAtendimento, finalizarAtendimento, cancelarSenha, repetirSenha, login, atualizarSessaoAtendente, naoApareceu } = useSenhas();
   const navigate = useNavigate();
 
   // Auth States
@@ -19,58 +16,14 @@ export default function Atendente() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // User Session State
-  const [usuarioLogado, setUsuarioLogado] = useState<{ id: string, nome: string, guiche?: number, tipoGuiche?: string, tiposAtendimento?: any } | null>(null);
-  const [guiche, setGuiche] = useState(1);
-  const [tipoGuiche, setTipoGuiche] = useState('Guichê'); // Novo state
-  const [tiposAtendimentoLocal, setTiposAtendimentoLocal] = useState<string[]>([]);
-  const [modalConfigOpen, setModalConfigOpen] = useState(false);
-  const [tempGuiche, setTempGuiche] = useState(1);
-  const [tempTipoGuiche, setTempTipoGuiche] = useState('Guichê');
-  const [tempTipos, setTempTipos] = useState<string[]>([]);
-
-  // Initial config load effect
-  React.useEffect(() => {
-    if (logado && (!tiposAtendimentoLocal.length)) {
-      setModalConfigOpen(true);
-      // Pre-fill if user has saved data (simulated with backend data or default)
-      setModalConfigOpen(true);
-      // Pre-fill if user has saved data (simulated with backend data or default)
-      if (usuarioLogado?.guiche) setTempGuiche(usuarioLogado.guiche);
-      if (usuarioLogado?.tipoGuiche) setTempTipoGuiche(usuarioLogado.tipoGuiche);
-      if (usuarioLogado?.tiposAtendimento) {
-        setTempTipos(usuarioLogado.tiposAtendimento);
-      }
-    }
-  }, [logado]);
-
-  const handleSalvarConfig = () => {
-    if (tempTipos.length === 0) {
-      alert("Selecione pelo menos um tipo de atendimento.");
-      return;
-    }
-    setGuiche(tempGuiche);
-    setTipoGuiche(tempTipoGuiche);
-    setTiposAtendimentoLocal(tempTipos);
-    setModalConfigOpen(false);
-
-    // Update local user object visually just for reference, though logic uses separate state now
-    if (usuarioLogado) {
-      setUsuarioLogado({ ...usuarioLogado, guiche: tempGuiche, tipoGuiche: tempTipoGuiche, tiposAtendimento: tempTipos });
-    }
-
-    // Persist to server (Optional but good for ux)
-    // Persist to server (Optional but good for ux)
-    if (usuarioLogado) {
-      atualizarSessaoAtendente(usuarioLogado.id, tempGuiche, tempTipoGuiche, tempTipos);
-    }
-  };
+  const [usuarioLogado, setUsuarioLogado] = useState<{ id: string, nome: string, guiche?: number, tiposAtendimento?: any } | null>(null);
+  const [guiche, setGuiche] = useState(1); // Pode ser sobrescrito pelo usuario do banco
 
   // As senhas que este atendente pode ver/chamar
   const senhasAguardando = senhas.filter(s => {
     if (s.status !== 'aguardando') return false;
-    // Use local config instead of user object property
-    if (tiposAtendimentoLocal.length > 0) {
-      return tiposAtendimentoLocal.includes(s.tipo);
+    if (usuarioLogado?.tiposAtendimento && usuarioLogado.tiposAtendimento.length > 0) {
+      return usuarioLogado.tiposAtendimento.includes(s.tipo);
     }
     return true;
   });
@@ -93,11 +46,8 @@ export default function Atendente() {
 
         if (fullUser && (fullUser.funcao === 'Atendente' || fullUser.isAdmin)) {
           setLogado(true);
-          setLogado(true);
           setUsuarioLogado(fullUser);
-          // Defaults
-          setTempGuiche(fullUser.guiche || 1);
-          setTempTipoGuiche(fullUser.tipoGuiche || 'Guichê');
+          if (fullUser.guiche) setGuiche(fullUser.guiche);
           setLoginError('');
         } else {
           setLoginError('Acesso negado. Este usuário não é um Atendente.');
@@ -115,9 +65,6 @@ export default function Atendente() {
     setUsuarioLogado(null);
     setEmailInput('');
     setPasswordInput('');
-    setTiposAtendimentoLocal([]);
-    setModalConfigOpen(false);
-    logout();
   };
 
   const handleChamarSenha = () => {
@@ -125,9 +72,8 @@ export default function Atendente() {
 
     chamarSenha({
       guiche,
-      tipoGuiche,
       atendente: usuarioLogado.nome,
-      tiposPermitidos: tiposAtendimentoLocal
+      tiposPermitidos: usuarioLogado.tiposAtendimento
     });
   };
 
@@ -138,41 +84,69 @@ export default function Atendente() {
   };
 
   // --- LOGIN SCREEN ---
-  // --- LOGIN SCREEN ---
   if (!logado) {
     return (
-      <LoginLayout
-        title="Portal do Atendente"
-        subtitle="Identifique-se para começar"
-        colorScheme="success"
-      >
-        <LoginForm
-          onLogin={async (email, password) => {
-            setIsLoggingIn(true);
-            setLoginError('');
-            try {
-              const response = await login(email, password);
-              if (response.success && response.user) {
-                const fullUser = usuarios.find(u => u.id === response.user!.id);
-                if (fullUser && (fullUser.funcao === 'Atendente' || fullUser.isAdmin)) {
-                  setLogado(true);
-                  setUsuarioLogado(fullUser);
-                  setTempGuiche(fullUser.guiche || 1);
-                  setTempTipoGuiche(fullUser.tipoGuiche || 'Guichê');
-                } else {
-                  setLoginError('Acesso negado. Apenas atendentes.');
-                }
-              } else {
-                setLoginError(response.error || 'Credenciais inválidas.');
-              }
-            } finally {
-              setIsLoggingIn(false);
-            }
-          }}
-          isLoading={isLoggingIn}
-          error={loginError}
-        />
-      </LoginLayout>
+      <div className="min-h-screen bg-gradient-to-br from-green-600 via-green-700 to-green-900 flex items-center justify-center p-6">
+        <div className="bg-white rounded-3xl shadow-2xl p-12 max-w-md w-full">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Phone className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-gray-800 text-3xl font-bold mb-2">Portal do Atendente</h1>
+            <p className="text-gray-500">Identifique-se para começar</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2">Email</label>
+              <input
+                type="text"
+                value={emailInput}
+                onChange={e => setEmailInput(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 focus:border-green-500 focus:outline-none bg-white transition-colors"
+                placeholder="seu@email.com"
+                autoFocus
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-700 font-semibold mb-2">Senha</label>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={e => setPasswordInput(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 focus:border-green-500 focus:outline-none bg-white transition-colors"
+                placeholder="Sua senha"
+                required
+              />
+            </div>
+
+            {loginError && (
+              <div className="p-3 bg-red-100 text-red-700 rounded-lg text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" /> {loginError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+            >
+              {isLoggingIn ? 'Entrando...' : 'Iniciar Atendimento'}
+            </button>
+
+            <button
+              type="button"
+              disabled={isLoggingIn}
+              onClick={() => navigate('/')}
+              className="w-full text-gray-500 hover:text-gray-800 font-medium py-2 transition-colors disabled:opacity-50"
+            >
+              Voltar ao Início
+            </button>
+          </form>
+        </div>
+      </div>
     );
   }
 
@@ -182,35 +156,23 @@ export default function Atendente() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-4">
-          <img src={logo} alt="Logo" className="w-12 h-12 object-contain" />
+          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-700">
+            <Phone className="w-6 h-6" />
+          </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">{tipoGuiche} {guiche}</h1>
+            <h1 className="text-xl font-bold text-gray-800">Guichê {guiche}</h1>
             <p className="text-sm text-gray-500 flex items-center gap-1">
               <CheckCircle className="w-3 h-3 text-green-500" /> {usuarioLogado?.nome}
             </p>
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              setTempGuiche(guiche);
-              setTempTipoGuiche(tipoGuiche);
-              setTempTipos(tiposAtendimentoLocal);
-              setModalConfigOpen(true);
-            }}
-            className="p-2 text-secondary-500 hover:text-primary-600 hover:bg-secondary-50 rounded-lg transition-colors"
-            title="Configurações de Atendimento"
-          >
-            <Settings className="w-6 h-6" />
-          </button>
-          <button
-            onClick={handleLogout}
-            className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg font-medium transition-colors"
-          >
-            Sair
-          </button>
-        </div>
+        <button
+          onClick={handleLogout}
+          className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg font-medium transition-colors"
+        >
+          Sair
+        </button>
       </header>
 
       <main className="p-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -233,63 +195,12 @@ export default function Atendente() {
                   </div>
                 </div>
 
-                <div className="mb-6 border-b border-gray-100 pb-6">
+                <div className="mb-8">
                   <h3 className="text-3xl font-bold text-gray-800 mb-2">{senhaAtual.nome}</h3>
-                  <div className="flex flex-wrap gap-4 text-sm text-gray-500 mt-3">
-                    {senhaAtual.cpf && (
-                      <span className="flex items-center gap-1 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
-                        <span className="font-semibold text-gray-700">CPF:</span> {senhaAtual.cpf}
-                      </span>
-                    )}
-                    {senhaAtual.telefone && (
-                      <span className="flex items-center gap-1 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
-                        <Phone className="w-3 h-3" /> {senhaAtual.telefone}
-                      </span>
-                    )}
-                    {senhaAtual.bairro && (
-                      <span className="flex items-center gap-1 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
-                        <span className="font-semibold text-gray-700">Bairro:</span> {senhaAtual.bairro}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
-                      <Clock className="w-3 h-3" /> Aguardou {senhaAtual.horaChamada && calcularTempoEspera(senhaAtual.horaChamada)} min
-                    </span>
-                  </div>
+                  <p className="text-gray-500 flex items-center gap-2">
+                    <Clock className="w-5 h-5" /> Aguardou {senhaAtual.horaChamada && calcularTempoEspera(senhaAtual.horaChamada)} min
+                  </p>
                 </div>
-
-                {/* HISTÓRICO DO CIDADÃO */}
-                {senhaAtual.cpf && (
-                  <div className="mb-8 bg-blue-50/50 rounded-2xl p-4 border border-blue-100">
-                    <h4 className="text-sm font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-2">
-                      <Clock className="w-4 h-4" /> Histórico de Visitas
-                    </h4>
-
-                    {senhas.filter(s => s.cpf === senhaAtual.cpf && s.id !== senhaAtual.id).length > 0 ? (
-                      <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                        {senhas
-                          .filter(s => s.cpf === senhaAtual.cpf && s.id !== senhaAtual.id)
-                          .sort((a, b) => new Date(b.horaGeracao).getTime() - new Date(a.horaGeracao).getTime())
-                          .map(h => (
-                            <div key={h.id} className="bg-white p-3 rounded-lg border border-blue-100 text-sm flex justify-between items-center">
-                              <div>
-                                <span className="font-bold text-gray-700">{new Date(h.horaGeracao).toLocaleDateString()}</span>
-                                <span className="text-gray-400 mx-2">•</span>
-                                <span className="text-gray-600">{h.tipo}</span>
-                              </div>
-                              <span className={`px-2 py-0.5 rounded textxs font-bold ${h.status === 'concluida' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                {h.status}
-                              </span>
-                            </div>
-                          ))
-                        }
-                      </div>
-                    ) : (
-                      <div className="text-center py-4 text-blue-400 text-sm bg-white/50 rounded-lg border border-blue-100 border-dashed">
-                        Nenhuma visita anterior encontrada para este CPF.
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   {senhaAtual.status === 'chamada' ? (
@@ -376,83 +287,6 @@ export default function Atendente() {
         </div>
 
       </main>
-
-      {modalConfigOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 transform transition-all scale-100">
-
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-green-600 to-green-700 px-8 py-6 flex justify-between items-center shadow-lg relative overflow-hidden">
-              <div className="absolute inset-0 bg-white/10 opacity-50 pattern-grid-lg"></div>
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3 relative z-10">
-                <Settings className="w-7 h-7" />
-                Configuração
-              </h3>
-              {tiposAtendimentoLocal.length > 0 && (
-                <button
-                  onClick={() => setModalConfigOpen(false)}
-                  className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-colors relative z-10"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              )}
-            </div>
-
-            <div className="p-8 space-y-8">
-
-              {/* Tipo de Unidade Selection */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Onde você está?</label>
-                <div className="grid grid-cols-2 gap-4">
-                  {['Guichê', 'Sala'].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setTempTipoGuiche(type)}
-                      className={`flex flex-col items-center justify-center py-4 rounded-2xl border-2 transition-all duration-200 ${tempTipoGuiche === type
-                        ? 'border-green-500 bg-green-50 text-green-700 shadow-md transform scale-[1.02]'
-                        : 'border-gray-200 hover:border-green-200 hover:bg-gray-50 text-gray-500'
-                        }`}
-                    >
-                      <span className="text-lg font-bold">{type}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Number Selection 1-10 */}
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Número da {tempTipoGuiche}</label>
-                <div className="grid grid-cols-5 gap-3">
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
-                    <button
-                      key={num}
-                      onClick={() => setTempGuiche(num)}
-                      className={`h-12 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center ${tempGuiche === num
-                        ? 'bg-green-600 text-white shadow-lg shadow-green-200 transform -translate-y-1'
-                        : 'bg-white border-2 border-gray-100 text-gray-600 hover:border-green-400 hover:text-green-600'
-                        }`}
-                    >
-                      {num}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-
-
-              {/* Action Button */}
-              <button
-                onClick={handleSalvarConfig}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-green-200 hover:shadow-green-300 transition-all transform active:scale-95"
-              >
-                <Save className="w-6 h-6" />
-                Confirmar e Iniciar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

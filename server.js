@@ -157,27 +157,12 @@ async function startServer() {
         }
     });
 
-    const isProduction = process.env.NODE_ENV === 'production';
+    const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+    });
 
-    if (isProduction) {
-        console.log('Ambiente: PRODUÇÃO (Servindo arquivos estáticos)');
-        const distPath = path.resolve(__dirname, 'dist');
-
-        // Serve static files
-        app.use(express.static(distPath));
-
-        // SPA Fallback
-        app.get('*', (req, res) => {
-            res.sendFile(path.join(distPath, 'index.html'));
-        });
-    } else {
-        console.log('Ambiente: DESENVOLVIMENTO (Usando Vite Middleware)');
-        const vite = await createViteServer({
-            server: { middlewareMode: true },
-            appType: 'spa',
-        });
-        app.use(vite.middlewares);
-    }
+    app.use(vite.middlewares);
 
     const onlineUsers = new Map(); // socketId -> userId
     const connectedUserIds = new Set();
@@ -223,29 +208,11 @@ async function startServer() {
             }
         });
 
-        socket.on('logout', async () => {
-            if (onlineUsers.has(socket.id)) {
-                const userId = onlineUsers.get(socket.id);
-                onlineUsers.delete(socket.id);
-
-                // Check if user still has other connections
-                const activeSockets = Array.from(onlineUsers.values());
-                if (!activeSockets.includes(userId)) {
-                    connectedUserIds.delete(userId);
-                }
-
-                // Broadcast update
-                const users = await prisma.usuario.findMany();
-                const usersWithStatus = users.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
-                io.emit('usersUpdated', usersWithStatus);
-            }
-        });
-
         // 2. Handle 'request_ticket'
         socket.on('request_ticket', async (data, callback) => {
             console.log('Recebido request_ticket:', data);
             try {
-                const { nome, tipo, prioridade, cpf, telefone, bairro } = data; // Added citizen info
+                const { nome, tipo, prioridade } = data;
 
                 const configKey = prioridade === 'prioritaria' ? 'contadorPrioritaria' : 'contadorNormal';
                 const prefixo = prioridade === 'prioritaria' ? 'P' : 'N';
@@ -265,9 +232,6 @@ async function startServer() {
                         nome,
                         tipo,
                         prioridade,
-                        cpf,
-                        telefone,
-                        bairro,
                         status: 'aguardando',
                         horaGeracao: new Date()
                     }
@@ -287,7 +251,7 @@ async function startServer() {
         // 3. Handle 'call_ticket' - ATOMIC VERSION
         socket.on('call_ticket', async (data) => {
             try {
-                const { guiche, atendente, tiposPermitidos, tipoGuiche } = data; // Added tipoGuiche
+                const { guiche, atendente, tiposPermitidos } = data;
 
                 // Transação Implícita para garantir consistência
                 // Primeiro, encontramos o ID do melhor candidato (o "Garfo") 
@@ -340,7 +304,6 @@ async function startServer() {
                             status: 'chamada',
                             guiche,
                             atendente,
-                            tipoGuiche: tipoGuiche || 'Guichê', // Save tipoGuiche
                             horaChamada: new Date()
                         }
                     });
@@ -589,13 +552,12 @@ async function startServer() {
         // 11. Attendant Session Update (Self-Config)
         socket.on('attendant_update_session', async (data, callback) => {
             try {
-                const { userId, guiche, tiposAtendimento, tipoGuiche } = data;
+                const { userId, guiche, tiposAtendimento } = data;
 
                 await prisma.usuario.update({
                     where: { id: userId },
                     data: {
                         guiche: parseInt(guiche),
-                        tipoGuiche: tipoGuiche || 'Guichê',
                         tiposAtendimento: JSON.stringify(tiposAtendimento || [])
                     }
                 });

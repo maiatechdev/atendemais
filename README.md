@@ -109,6 +109,7 @@ Para garantir que o sistema não feche acidentalmente, use o **PM2** (Gerenciado
 
 ---
 
+<<<<<<< HEAD
 ## 🔐 Segurança e Acesso
 
 ### Credenciais Padrão (Admin)
@@ -122,3 +123,10 @@ O sistema foi resetado e conta com um único administrador inicial:
 *   **Criptografia**: Todas as senhas agora são armazenadas com **hash seguro (Bcrypt)**. Nenhuma senha fica em texto puro.
 *   **Migração Automática**: Se houver usuários antigos (legado), o sistema converte a senha para criptografia automaticamente no primeiro login.
 *   **Troca de Senha**: Atendentes, Gestores e Admins podem trocar suas próprias senhas diretamente pelo painel.
+=======
+## 🔐 Credenciais Padrão
+
+O sistema cria um administrador padrão na primeira execução:
+*   **Email**: `admin`
+*   **Senha**: `admin`
+>>>>>>> 674989dd9ec2c4c3a3a4ac8c23843606436e1cbc

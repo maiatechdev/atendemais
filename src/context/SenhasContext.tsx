@@ -13,14 +13,10 @@ export interface Senha {
   prioridade: Prioridade;
   status: StatusSenha;
   guiche?: number;
-  tipoGuiche?: string;
   atendente?: string;
   horaGeracao: Date;
   horaChamada?: Date;
   horaFinalizacao?: Date;
-  cpf?: string;
-  telefone?: string;
-  bairro?: string;
 }
 
 export interface Servico {
@@ -35,16 +31,13 @@ export interface Usuario {
   email: string;
   funcao: 'Atendente' | 'Gerador' | 'Administrador';
   isAdmin?: boolean;
-  isAdmin?: boolean;
   guiche?: number;
-  tipoGuiche?: string; // New field
-  tiposAtendimento?: string[]; // Defined services for this user
+  tiposAtendimento?: any; // JSON string from DB, parsed manually if needed, or string array in UI
   online?: boolean; // Real-time status
 }
 
 interface ChamarSenhaOptions {
   guiche: number;
-  tipoGuiche?: string; // New field
   atendente: string;
   tiposPermitidos?: TipoAtendimento[];
 }
@@ -54,7 +47,7 @@ interface SenhasContextType {
   usuarios: Usuario[];
   senhaAtual: Senha | null;
   ultimasSenhas: Senha[];
-  gerarSenha: (nome: string, tipo: TipoAtendimento, prioridade: Prioridade, cpf?: string, telefone?: string, bairro?: string) => Promise<Senha>;
+  gerarSenha: (nome: string, tipo: TipoAtendimento, prioridade: Prioridade) => Promise<Senha>;
   chamarSenha: (options: ChamarSenhaOptions) => void;
   iniciarAtendimento: (senhaId: string) => void;
   finalizarAtendimento: (senhaId: string) => void;
@@ -63,7 +56,7 @@ interface SenhasContextType {
   repetirSenha: () => void;
   // Admin Methods
   adicionarUsuario: (usuario: Omit<Usuario, 'id'>) => void;
-  editarUsuario: (id: string, usuario: Partial<Usuario> & { senha?: string }) => void;
+  editarUsuario: (id: string, usuario: Partial<Usuario>) => void;
   excluirUsuario: (id: string) => void;
   resetarFila: () => void;
   // Services Methods
@@ -73,8 +66,6 @@ interface SenhasContextType {
   toggleServico: (id: string) => void;
 
   login: (email: string, senha: string) => Promise<{ success: boolean; user?: any; error?: string }>;
-  logout: () => void;
-  atualizarSessaoAtendente: (userId: string, guiche: number, tipoGuiche: string, tiposAtendimento: string[]) => void;
 }
 
 const SenhasContext = createContext<SenhasContextType | undefined>(undefined);
@@ -134,14 +125,6 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setServicos(updatedServices);
     });
 
-    socket.on('usersUpdated', (updatedUsers: any[]) => {
-      const parsedUsers = updatedUsers.map((u: any) => ({
-        ...u,
-        tiposAtendimento: typeof u.tiposAtendimento === 'string' ? JSON.parse(u.tiposAtendimento) : u.tiposAtendimento
-      }));
-      setUsuarios(parsedUsers);
-    });
-
     socket.on('stateUpdated', (payload: SyncMessage['payload']) => {
       const parseDates = (s: any) => ({
         ...s,
@@ -168,7 +151,7 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, []);
 
-  const gerarSenha = (nome: string, tipo: TipoAtendimento, prioridade: Prioridade, cpf?: string, telefone?: string, bairro?: string): Promise<Senha> => {
+  const gerarSenha = (nome: string, tipo: TipoAtendimento, prioridade: Prioridade): Promise<Senha> => {
     return new Promise((resolve, reject) => {
       if (!socketRef.current) {
         const temp: Senha = {
@@ -177,16 +160,13 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           nome,
           tipo,
           prioridade,
-          cpf,
-          telefone,
-          bairro,
           status: 'aguardando',
           horaGeracao: new Date()
         };
         return resolve(temp);
       }
 
-      socketRef.current.emit('request_ticket', { nome, tipo, prioridade, cpf, telefone, bairro }, (response: any) => {
+      socketRef.current.emit('request_ticket', { nome, tipo, prioridade }, (response: any) => {
         if (response.success && response.data) {
           resolve(response.data);
         } else {
@@ -196,9 +176,9 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const chamarSenha = ({ guiche, atendente, tiposPermitidos, tipoGuiche }: ChamarSenhaOptions) => {
+  const chamarSenha = ({ guiche, atendente, tiposPermitidos }: ChamarSenhaOptions) => {
     if (socketRef.current) {
-      socketRef.current.emit('call_ticket', { guiche, atendente, tiposPermitidos, tipoGuiche });
+      socketRef.current.emit('call_ticket', { guiche, atendente, tiposPermitidos });
     }
   };
 
@@ -264,26 +244,9 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const editarUsuario = (id: string, dados: Partial<Usuario> & { senha?: string }) => {
-    if (socketRef.current) {
-      socketRef.current.emit('admin_update_user', { id, ...dados }, (response: any) => {
-        if (response.success) {
-          // Refresh users
-          socketRef.current?.emit('admin_get_users', (resp: any) => {
-            if (resp.success) {
-              const parsedUsers = resp.data.map((u: any) => ({
-                ...u,
-                tiposAtendimento: typeof u.tiposAtendimento === 'string' ? JSON.parse(u.tiposAtendimento) : u.tiposAtendimento
-              }));
-              setUsuarios(parsedUsers);
-            }
-          });
-        } else {
-          console.error("Erro editar user:", response.error);
-          alert("Erro ao editar: " + (response.error || 'Erro desconhecido'));
-        }
-      });
-    }
+  const editarUsuario = (id: string, dados: Partial<Usuario>) => {
+    // Placeholder for future edit implementation
+    console.warn("Edit not implemented fully on server yet.");
   };
 
   const excluirUsuario = (id: string) => {
@@ -326,18 +289,6 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const logout = () => {
-    if (socketRef.current) {
-      socketRef.current.emit('logout');
-    }
-  };
-
-  const atualizarSessaoAtendente = (userId: string, guiche: number, tipoGuiche: string, tiposAtendimento: string[]) => {
-    if (socketRef.current) {
-      socketRef.current.emit('attendant_update_session', { userId, guiche, tipoGuiche, tiposAtendimento });
-    }
-  };
-
   return (
     <SenhasContext.Provider
       value={{
@@ -360,10 +311,7 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         criarServico,
         excluirServico,
         toggleServico,
-
-        login,
-        logout,
-        atualizarSessaoAtendente
+        login
       }}
     >
       {children}

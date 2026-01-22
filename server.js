@@ -10,6 +10,7 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const prisma = new PrismaClient();
@@ -122,20 +123,8 @@ async function startServer() {
         }
 
         // Inicializar Serviços Padrão
-        const servicesCount = await prisma.servico.count();
-        if (servicesCount === 0) {
-            console.log('Inicializando serviços padrão...');
-            const defaultServices = [
-                'Cadastro Novo',
-                'Atualização',
-                'Informações',
-                'Benefícios',
-                'Documentação'
-            ];
-            for (const nome of defaultServices) {
-                await prisma.servico.create({ data: { nome } });
-            }
-        }
+        // Inicializar Serviços Padrão - REMOVIDO A PEDIDO DO USUÁRIO
+        // O sistema agora permite ter 0 serviços sem recriar os padrões.
     } catch (e) {
         console.error("Erro na inicialização do DB:", e);
     }
@@ -194,27 +183,56 @@ async function startServer() {
         }
 
         // --- AUTH EVENTS ---
+        // 1. Handle 'login'
         socket.on('login', async (data, callback) => {
+            const { email, password } = data;
             try {
-                const { email, password } = data;
-                const user = await prisma.usuario.findFirst({
-                    where: {
-                        email: email,
-                        senha: password // Em produção usar hash!
-                    }
-                });
+                // Find by email only to check password manually
+                const user = await prisma.usuario.findUnique({ where: { email } });
 
                 if (user) {
-                    // Track user
-                    onlineUsers.set(socket.id, user.id);
-                    connectedUserIds.add(user.id);
+                    let isValid = false;
 
-                    // Broadcast user status update
-                    const allUsers = await prisma.usuario.findMany();
-                    const usersWithStatus = allUsers.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
-                    io.emit('usersUpdated', usersWithStatus);
+                    // 1. Check if it's a legacy plain-text password (temporary migration)
+                    if (user.senha === password) {
+                        // It's a match! Auto-migrate to hash
+                        console.log(`[Security] Migrating legacy password for user ${user.email}...`);
+                        const salt = await bcrypt.genSalt(10);
+                        const hash = await bcrypt.hash(password, salt);
 
-                    if (callback) callback({ success: true, user: { id: user.id, nome: user.nome, email: user.email, isAdmin: user.isAdmin } });
+                        await prisma.usuario.update({
+                            where: { id: user.id },
+                            data: { senha: hash }
+                        });
+                        isValid = true;
+                    } else {
+                        // 2. Check bcrypt hash
+                        isValid = await bcrypt.compare(password, user.senha || '');
+                    }
+
+                    if (isValid) {
+                        // Track user
+                        onlineUsers.set(socket.id, user.id);
+                        connectedUserIds.add(user.id);
+
+                        // Broadcast user status update
+                        const allUsers = await prisma.usuario.findMany();
+                        const usersWithStatus = allUsers.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
+                        io.emit('usersUpdated', usersWithStatus);
+
+                        if (callback) callback({
+                            success: true,
+                            user: {
+                                id: user.id,
+                                nome: user.nome,
+                                email: user.email,
+                                isAdmin: user.isAdmin,
+                                funcao: user.funcao
+                            }
+                        });
+                    } else {
+                        if (callback) callback({ success: false, error: 'Credenciais inválidas' });
+                    }
                 } else {
                     if (callback) callback({ success: false, error: 'Credenciais inválidas' });
                 }
@@ -355,7 +373,6 @@ async function startServer() {
                     where: { id },
                     data: {
                         status,
-                        status,
                         horaFinalizacao: status === 'concluida' ? new Date() : undefined,
                         horaInicio: status === 'atendendo' ? new Date() : undefined
                     }
@@ -470,11 +487,16 @@ async function startServer() {
         socket.on('admin_create_user', async (data, callback) => {
             try {
                 const { nome, email, senha, funcao, guiche, tiposAtendimento, isAdmin } = data;
+
+                const plainPassword = senha || '123456';
+                const salt = await bcrypt.genSalt(10);
+                const hashedPassword = await bcrypt.hash(plainPassword, salt);
+
                 await prisma.usuario.create({
                     data: {
                         nome,
                         email,
-                        senha: senha || '123456', // Default password if missing
+                        senha: hashedPassword, // Store hash
                         funcao,
                         isAdmin: funcao === 'Administrador', // Enforce single admin type logic
                         guiche: parseInt(guiche) || null,
@@ -484,7 +506,8 @@ async function startServer() {
 
                 // Broadcast updated user list
                 const users = await prisma.usuario.findMany();
-                io.emit('usersUpdated', users);
+                const usersWithStatus = users.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
+                io.emit('usersUpdated', usersWithStatus);
 
                 if (callback) callback({ success: true });
             } catch (e) {
@@ -506,7 +529,8 @@ async function startServer() {
 
                 // Broadcast updated user list
                 const users = await prisma.usuario.findMany();
-                io.emit('usersUpdated', users);
+                const usersWithStatus = users.map(u => ({ ...u, online: connectedUserIds.has(u.id) }));
+                io.emit('usersUpdated', usersWithStatus);
 
                 if (callback) callback({ success: true });
             } catch (e) {
@@ -585,6 +609,46 @@ async function startServer() {
                 if (callback) callback({ success: true });
             } catch (e) {
                 console.error("Erro attendant_update_session:", e);
+                if (callback) callback({ success: false, error: e.message });
+            }
+        });
+
+
+        // 12. Change Password (Self-Service)
+        socket.on('change_password', async (data, callback) => {
+            const { userId, oldPassword, newPassword } = data;
+            try {
+                const user = await prisma.usuario.findUnique({ where: { id: userId } });
+                if (!user) {
+                    if (callback) callback({ success: false, error: 'Usuário não encontrado.' });
+                    return;
+                }
+
+                // Verify old password
+                let isValid = false;
+                if (user.senha === oldPassword) {
+                    isValid = true; // Legacy match
+                } else {
+                    isValid = await bcrypt.compare(oldPassword, user.senha || '');
+                }
+
+                if (!isValid) {
+                    if (callback) callback({ success: false, error: 'Senha atual incorreta.' });
+                    return;
+                }
+
+                // Update to new password
+                const salt = await bcrypt.genSalt(10);
+                const hash = await bcrypt.hash(newPassword, salt);
+
+                await prisma.usuario.update({
+                    where: { id: userId },
+                    data: { senha: hash }
+                });
+
+                if (callback) callback({ success: true });
+            } catch (e) {
+                console.error("Erro change_password:", e);
                 if (callback) callback({ success: false, error: e.message });
             }
         });

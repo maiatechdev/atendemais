@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Home, Users, BarChart2, Settings, Edit2, Trash2, Plus, X, AlertTriangle, LogOut, ChevronRight, User, Calendar as CalendarIcon, Filter, Download, Clock, Shield, Activity, Layers, ToggleLeft, ToggleRight, Volume2 } from 'lucide-react';
+import { Home, Users, BarChart2, Settings, Edit2, Trash2, Plus, X, AlertTriangle, LogOut, ChevronRight, User, Calendar as CalendarIcon, Filter, Download, Clock, Shield, Activity, Layers, ToggleLeft, ToggleRight, Volume2, Lock } from 'lucide-react';
 import LiveDashboard from './admin/LiveDashboard';
 import UsersOnlineList from './admin/UsersOnlineList';
 import HistoryView from './admin/HistoryView';
 import LoginLayout from './auth/LoginLayout';
 import LoginForm from './auth/LoginForm';
+import ChangePasswordModal from './auth/ChangePasswordModal';
 import { useSenhas, type Usuario, type Senha } from '../context/SenhasContext';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
@@ -26,6 +27,8 @@ export default function Administrador() {
     const [abaAtiva, setAbaAtiva] = useState<'usuarios' | 'servicos' | 'estatisticas' | 'configuracoes' | 'monitoramento' | 'historico'>('usuarios');
     const [mostrarFormulario, setMostrarFormulario] = useState(false);
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
+    const [changePassOpen, setChangePassOpen] = useState(false);
+    const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
 
     // Dashboard Filters
     const [dateRange, setDateRange] = useState<'hoje' | 'semana' | 'mes' | 'ano' | 'custom'>('hoje');
@@ -54,9 +57,12 @@ export default function Administrador() {
             const response = await login(emailInput || 'admin', passwordInput);
 
             if (response.success && (response.user?.isAdmin || response.user?.funcao === 'Administrador')) {
+                console.log('Login Success! Setting User:', response.user);
                 setIsAuthenticated(true);
+                setCurrentUser(response.user);
                 setLoginError('');
             } else {
+                console.error('Login Failed or Permission Denied:', response);
                 setLoginError('Credenciais inválidas ou sem permissão de administrador.');
             }
         } finally {
@@ -237,6 +243,7 @@ export default function Administrador() {
                             const response = await login(email, password);
                             if (response.success && (response.user?.isAdmin || response.user?.funcao === 'Administrador')) {
                                 setIsAuthenticated(true);
+                                setCurrentUser(response.user);
                             } else {
                                 setLoginError('Credenciais inválidas ou sem permissão.');
                             }
@@ -297,7 +304,10 @@ export default function Administrador() {
                     </button>
                 </nav>
 
-                <div className="p-4 border-t border-gray-100">
+                <div className="p-4 border-t border-gray-100 space-y-2">
+                    <button onClick={() => setChangePassOpen(true)} className="w-full flex items-center gap-2 text-secondary-600 hover:bg-secondary-50 px-4 py-3 rounded-lg transition-colors font-medium">
+                        <Lock className="w-5 h-5" /> Trocar Senha
+                    </button>
                     <button onClick={handleLogout} className="w-full flex items-center gap-2 text-danger-600 hover:bg-danger-50 px-4 py-3 rounded-lg transition-colors font-medium">
                         <LogOut className="w-5 h-5" /> Sair
                     </button>
@@ -310,7 +320,10 @@ export default function Administrador() {
                 {/* HEADER MOBILE */}
                 <div className="lg:hidden mb-6 flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
                     <h1 className="text-xl font-bold text-primary-900">Admin</h1>
-                    <button onClick={handleLogout}><LogOut className="w-5 h-5 text-secondary-500" /></button>
+                    <div className="flex gap-4">
+                        <button onClick={() => setChangePassOpen(true)}><Lock className="w-5 h-5 text-secondary-500" /></button>
+                        <button onClick={handleLogout}><LogOut className="w-5 h-5 text-secondary-500" /></button>
+                    </div>
                 </div>
 
                 {abaAtiva === 'usuarios' && (
@@ -701,7 +714,8 @@ export default function Administrador() {
                             <p className="text-secondary-500">Opções avançadas de gerenciamento.</p>
                         </div>
 
-                        {emailInput === 'lucas.andr97@gmail.com' ? (
+                        {/* Allow any Admin to access logic */}
+                        {currentUser?.isAdmin ? (
                             <div className="p-8 bg-danger-50 rounded-2xl border border-danger-100">
                                 <h3 className="text-danger-800 font-bold mb-2 flex items-center gap-2 text-lg">
                                     <AlertTriangle className="w-5 h-5" /> Zona de Perigo
@@ -722,13 +736,24 @@ export default function Administrador() {
                             <div className="p-8 bg-gray-50 rounded-2xl border border-gray-200 text-center">
                                 <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                                 <h3 className="text-gray-500 font-bold text-lg">Área Restrita</h3>
-                                <p className="text-gray-400 text-sm">Esta configuração é reservada para o administrador principal.</p>
+                                <p className="text-gray-400 text-sm">Esta configuração é reservada para administradores.</p>
+                                <p className="text-xs text-gray-400 mt-2">Seu nível: {currentUser?.funcao || 'Desconhecido'}</p>
                             </div>
                         )}
                     </div>
                 )}
 
             </main>
-        </div>
+
+            {
+                currentUser && (
+                    <ChangePasswordModal
+                        isOpen={changePassOpen}
+                        onClose={() => setChangePassOpen(false)}
+                        userId={currentUser.id}
+                    />
+                )
+            }
+        </div >
     );
 }

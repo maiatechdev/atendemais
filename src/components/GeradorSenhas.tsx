@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Home, TicketPlus, CheckCircle, Printer, ArrowLeft, User, Phone, MapPin, AlertTriangle, Layers, CreditCard, Calendar } from 'lucide-react';
+import { Home, TicketPlus, CheckCircle, Printer, ArrowLeft, User, Phone, MapPin, AlertTriangle, Layers, CreditCard, Calendar, Lock } from 'lucide-react';
 import { useSenhas, type TipoAtendimento, type Prioridade } from '../context/SenhasContext';
 import { useNavigate } from 'react-router-dom';
 import LoginLayout from './auth/LoginLayout';
 import LoginForm from './auth/LoginForm';
+import ChangePasswordModal from './auth/ChangePasswordModal';
 import logo from '../assets/logo.svg';
 
 export default function GeradorSenhas() {
@@ -27,6 +28,7 @@ export default function GeradorSenhas() {
   const [senhaGerada, setSenhaGerada] = useState<string | null>(null);
   const [mostrarSucesso, setMostrarSucesso] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Inicializa o tipo com o primeiro serviço ativo se disponível
   React.useEffect(() => {
@@ -172,6 +174,7 @@ export default function GeradorSenhas() {
                 const fullUser = usuarios.find(u => u.id === response.user!.id);
                 if (fullUser && (fullUser.funcao === 'Gerador' || fullUser.funcao === 'Administrador' || fullUser.isAdmin)) {
                   setIsAuthenticated(true);
+                  setCurrentUser(fullUser);
                 } else {
                   setLoginError('Acesso negado. Área restrita.');
                 }
@@ -212,6 +215,13 @@ export default function GeradorSenhas() {
             <Layers className="w-4 h-4" />
             {senhasAguardando.length} na fila
           </div>
+          <button
+            onClick={() => setChangePassOpen(true)}
+            className="text-gray-500 hover:text-blue-600 font-medium text-sm transition-colors flex items-center gap-1"
+            title="Trocar Senha"
+          >
+            <Lock className="w-4 h-4" />
+          </button>
           <button
             onClick={handleLogout}
             className="text-red-500 hover:text-red-700 font-medium text-sm transition-colors"
@@ -467,6 +477,33 @@ export default function GeradorSenhas() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Change Password Modal */}
+      {isAuthenticated && (
+        <ChangePasswordModal
+          isOpen={changePassOpen}
+          onClose={() => setChangePassOpen(false)}
+          // Assuming the current user is found in 'usuarios' by matching context/token logic, 
+          // but Gerador doesn't explicitly store loggedUser object in state like Atendente.
+          // We can use a trick: pass a dummy ID if not found, but we should find it.
+          // The context 'usuarios' might not have 'me'.
+          // Let's use the first user matching email from login response if we had it, but we don't store it.
+          // Users of type 'Gerador' are not necessarily bound to specific ID in the old code?
+          // Wait, 'login' validates against database. We should store the user.
+          // For now, I'll pass 'current-user' or fix state.
+          // Actually, GeradorSenhas doesn't keep 'usuarioLogado' state except auth=true.
+          // Let's fix that by adding usuarioLogado state or retrieving it.
+          // We can't easily retrieve it without context knowing 'me'.
+          // I will use context.usuarios.find... but I don't know the email.
+          // Okay, I'll skip this specific fix for now and implement strictly what was asked, 
+          // assuming I can get the ID. I'll rely on a context 'user' if it existed.
+          // Since I can't get the specific user ID easily without refactoring GeradorSenhas state,
+          // I will assume the context might have it or I'll just skip rendering if no ID?
+          // I'll add 'usuarioLogado' state quickly in the next tool call if needed.
+          // Actually, I can store the user on login!
+          userId={currentUser?.id || ''}
+        />
       )}
     </div>
   );

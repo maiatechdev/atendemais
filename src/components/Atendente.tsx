@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useSenhas } from '../context/SenhasContext';
-import { Phone, CheckCircle, Volume2, Clock, AlertCircle, Settings, X, Save } from 'lucide-react';
+import { Phone, CheckCircle, Volume2, Clock, AlertCircle, Settings, X, Save, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import LoginLayout from './auth/LoginLayout';
 import LoginForm from './auth/LoginForm';
+import ChangePasswordModal from './auth/ChangePasswordModal';
 import logo from '../assets/logo.svg';
 
 export default function Atendente() {
@@ -27,6 +28,7 @@ export default function Atendente() {
   const [tempGuiche, setTempGuiche] = useState(1);
   const [tempTipoGuiche, setTempTipoGuiche] = useState('Guichê');
   const [tempTipos, setTempTipos] = useState<string[]>([]);
+  const [changePassOpen, setChangePassOpen] = useState(false);
 
   // Initial config load effect
   React.useEffect(() => {
@@ -44,24 +46,28 @@ export default function Atendente() {
   }, [logado]);
 
   const handleSalvarConfig = () => {
-    if (tempTipos.length === 0) {
-      alert("Selecione pelo menos um tipo de atendimento.");
-      return;
+    let tiposParaSalvar = [...tempTipos];
+
+    // If it's an Admin, we can auto-fill all services just to be explicit, 
+    // but even if we don't, empty list = 'Show All' in filter logic.
+    const isAdmin = usuarioLogado && (usuarioLogado.isAdmin || usuarioLogado.funcao === 'Administrador');
+    if (isAdmin && tiposParaSalvar.length === 0) {
+      tiposParaSalvar = servicos.filter(s => s.ativo).map(s => s.nome);
     }
+
+    // VALIDATION REMOVED: Allow proceeding with 0 services (defaults to viewing all)
+
     setGuiche(tempGuiche);
     setTipoGuiche(tempTipoGuiche);
-    setTiposAtendimentoLocal(tempTipos);
+    setTiposAtendimentoLocal(tiposParaSalvar);
     setModalConfigOpen(false);
 
-    // Update local user object visually just for reference, though logic uses separate state now
+    // Update local user object
     if (usuarioLogado) {
-      setUsuarioLogado({ ...usuarioLogado, guiche: tempGuiche, tipoGuiche: tempTipoGuiche, tiposAtendimento: tempTipos });
-    }
+      setUsuarioLogado({ ...usuarioLogado, guiche: tempGuiche, tipoGuiche: tempTipoGuiche, tiposAtendimento: tiposParaSalvar });
 
-    // Persist to server (Optional but good for ux)
-    // Persist to server (Optional but good for ux)
-    if (usuarioLogado) {
-      atualizarSessaoAtendente(usuarioLogado.id, tempGuiche, tempTipoGuiche, tempTipos);
+      // Persist to server
+      atualizarSessaoAtendente(usuarioLogado.id, tempGuiche, tempTipoGuiche, tiposParaSalvar);
     }
   };
 
@@ -192,6 +198,13 @@ export default function Atendente() {
         </div>
 
         <div className="flex gap-2">
+          <button
+            onClick={() => setChangePassOpen(true)}
+            className="p-2 text-secondary-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            title="Trocar Senha"
+          >
+            <Lock className="w-6 h-6" />
+          </button>
           <button
             onClick={() => {
               setTempGuiche(guiche);
@@ -365,7 +378,11 @@ export default function Atendente() {
                     )}
                   </div>
                   <h4 className="font-medium text-gray-700 mb-1">{senha.nome}</h4>
-                  <div className="flex justify-between items-center text-sm text-gray-500">
+                  <div className="text-xs text-gray-500 mb-2 flex flex-col gap-0.5">
+                    {senha.cpf && <span>CPF: {senha.cpf}</span>}
+                    {senha.bairro && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {senha.bairro}</span>}
+                  </div>
+                  <div className="flex justify-between items-center text-sm text-gray-500 border-t border-gray-100 pt-2">
                     <span>{senha.tipo}</span>
                     <span>{calcularTempoEspera(senha.horaGeracao)} min</span>
                   </div>
@@ -453,6 +470,17 @@ export default function Atendente() {
         </div>
       )}
 
-    </div>
+
+
+      {
+        usuarioLogado && (
+          <ChangePasswordModal
+            isOpen={changePassOpen}
+            onClose={() => setChangePassOpen(false)}
+            userId={usuarioLogado.id}
+          />
+        )
+      }
+    </div >
   );
 }

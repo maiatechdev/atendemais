@@ -75,6 +75,7 @@ interface SenhasContextType {
   login: (email: string, senha: string) => Promise<{ success: boolean; user?: any; error?: string }>;
   logout: () => void;
   atualizarSessaoAtendente: (userId: string, guiche: number, tipoGuiche: string, tiposAtendimento: string[]) => void;
+  alterarSenha: (userId: string, oldPass: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const SenhasContext = createContext<SenhasContextType | undefined>(undefined);
@@ -338,6 +339,15 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const alterarSenha = (userId: string, oldPass: string, newPass: string): Promise<{ success: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+      if (!socketRef.current) return resolve({ success: false, error: 'Offline' });
+      socketRef.current.emit('change_password', { userId, oldPassword: oldPass, newPassword: newPass }, (resp: any) => {
+        resolve(resp);
+      });
+    });
+  };
+
   return (
     <SenhasContext.Provider
       value={{
@@ -363,7 +373,8 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         login,
         logout,
-        atualizarSessaoAtendente
+        atualizarSessaoAtendente,
+        alterarSenha
       }}
     >
       {children}

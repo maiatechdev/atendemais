@@ -109,8 +109,16 @@ Para garantir que o sistema não feche acidentalmente, use o **PM2** (Gerenciado
 
 ---
 
-## 🔐 Credenciais Padrão
+## 🔐 Segurança e Acesso
 
-O sistema cria um administrador padrão na primeira execução:
-*   **Email**: `admin`
-*   **Senha**: `admin`
+### Credenciais Padrão (Admin)
+O sistema foi resetado e conta com um único administrador inicial:
+*   **Email**: `admin@atende.plus`
+*   **Senha**: `123456`
+
+> **⚠️ Importante:** Ao fazer login pela primeira vez, use o botão de **Cadeado (🔒)** no topo da tela para alterar sua senha imediatamente.
+
+### Novas Funcionalidades de Segurança
+*   **Criptografia**: Todas as senhas agora são armazenadas com **hash seguro (Bcrypt)**. Nenhuma senha fica em texto puro.
+*   **Migração Automática**: Se houver usuários antigos (legado), o sistema converte a senha para criptografia automaticamente no primeiro login.
+*   **Troca de Senha**: Atendentes, Gestores e Admins podem trocar suas próprias senhas diretamente pelo painel.

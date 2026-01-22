@@ -360,7 +360,7 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         criarServico,
         excluirServico,
         toggleServico,
-        toggleServico,
+
         login,
         logout,
         atualizarSessaoAtendente

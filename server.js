@@ -157,12 +157,27 @@ async function startServer() {
         }
     });
 
-    const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: 'spa',
-    });
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    app.use(vite.middlewares);
+    if (isProduction) {
+        console.log('Ambiente: PRODUÇÃO (Servindo arquivos estáticos)');
+        const distPath = path.resolve(__dirname, 'dist');
+
+        // Serve static files
+        app.use(express.static(distPath));
+
+        // SPA Fallback
+        app.get('*', (req, res) => {
+            res.sendFile(path.join(distPath, 'index.html'));
+        });
+    } else {
+        console.log('Ambiente: DESENVOLVIMENTO (Usando Vite Middleware)');
+        const vite = await createViteServer({
+            server: { middlewareMode: true },
+            appType: 'spa',
+        });
+        app.use(vite.middlewares);
+    }
 
     const onlineUsers = new Map(); // socketId -> userId
     const connectedUserIds = new Set();

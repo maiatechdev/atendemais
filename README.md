@@ -133,4 +133,30 @@ Se você quiser baixar o projeto em um computador novo:
 -   **Voz**: O Painel Público anuncia "Senha P005, Guichê 2" usando a voz do navegador.
 -   **Fila Inteligente**: Prioritários furam a fila dos Normais automaticamente, mas respeitam a ordem de chegada entre si.
 
-Desenvolvido para fins de prototipação e validação de fluxo de atendimento.
+
+---
+
+## 🚀 Servidor em Produção (Alta Performance)
+
+Para usar o sistema no dia-a-dia (Clinica, Prefeitura, etc), recomendamos usar o modo de produção.
+
+### 1. Gerar Arquivos Otimizados
+Rode este comando sempre que houver atualizações no código:
+```bash
+npm run build
+```
+*(Isso cria uma pasta `dist` com o site super leve)*
+
+### 2. Rodar com PM2 (Recomendado)
+O **PM2** mantém o site ligado 24h, mesmo se reiniciar o PC ou fechar a janela.
+
+1.  **Iniciar o Servidor:**
+    ```bash
+    npx pm2 start npm --name "atende-app" -- start
+    ```
+
+2.  **Comandos Úteis:**
+    -   Ver status: `npx pm2 list`
+    -   Reiniciar: `npx pm2 restart atende-app`
+    -   Parar: `npx pm2 stop atende-app`
+    -   Ver logs: `npx pm2 logs`

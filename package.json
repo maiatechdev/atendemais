@@ -65,6 +65,7 @@
     },
     "scripts": {
         "dev": "node server.js",
-        "build": "vite build"
+        "build": "vite build",
+        "start": "set NODE_ENV=production && node server.js"
     }
 }

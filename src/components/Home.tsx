@@ -2,6 +2,8 @@ import React from 'react';
 import { Tv, UserCircle, TicketPlus, Shield, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import logo from '../assets/logo.svg';
+
 export default function Home() {
   const navigate = useNavigate();
 
@@ -52,6 +54,7 @@ export default function Home() {
       <div className="max-w-6xl w-full z-10 relative">
         {/* Header */}
         <div className="text-center mb-16">
+          <img src={logo} alt="Atende+ Logo" className="h-24 mx-auto mb-6 drop-shadow-lg" />
           <h1 className="text-5xl md:text-6xl font-bold text-secondary-900 tracking-tight mb-4">
             Atende<span className="text-primary-600">+</span>
           </h1>

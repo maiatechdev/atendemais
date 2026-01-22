@@ -4,7 +4,7 @@ echo    BAIXANDO ALTERACOES DO GITHUB
 echo ==========================================
 echo.
 echo Buscando novidades na nuvem...
-git pull origin dev
+"C:\Program Files\Git\cmd\git.exe" pull origin main
 echo.
 echo ==========================================
 echo          SUCESSO! TUDO ATUALIZADO.

@@ -4,6 +4,20 @@ import { useSenhas } from '../context/SenhasContext';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/logo.svg';
 
+// Constantes para nomes das salas
+const NOMES_SALAS = [
+  'Tec 04', 'Tec 02', 'Tec 03', 'Tec 01', 'Contrato', 'Coordenação', 'Financeiro'
+];
+
+// Função para exibir guichê/sala corretamente
+const exibirGuiche = (tipoGuiche: string, guiche?: number): string => {
+  if (!guiche) return '—';
+  if (tipoGuiche === 'Sala' && guiche >= 1 && guiche <= 7) {
+    return NOMES_SALAS[guiche - 1];
+  }
+  return guiche.toString();
+};
+
 export default function PainelPublico() {
   const { senhaAtual, ultimasSenhas } = useSenhas();
   const navigate = useNavigate();
@@ -35,7 +49,9 @@ export default function PainelPublico() {
     if (!ticket) return;
 
     if ('speechSynthesis' in window) {
-      const text = `Senha ${ticket.numero}, ${ticket.nome}, ${ticket.tipoGuiche || 'Guichê'} ${ticket.guiche}`;
+      const tipoGuicheTexto = ticket.tipoGuiche || 'Guichê';
+      const guicheTexto = exibirGuiche(tipoGuicheTexto, ticket.guiche);
+      const text = `Senha ${ticket.numero}, ${ticket.nome}, ${tipoGuicheTexto} ${guicheTexto}`;
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       const voices = window.speechSynthesis.getVoices();
@@ -119,7 +135,7 @@ export default function PainelPublico() {
                   </div>
                   <div className="bg-primary-600 rounded-3xl p-8 shadow-lg shadow-primary-900/50">
                     <h3 className="text-primary-200 text-xl font-medium mb-2">{senhaAtual.tipoGuiche || 'Guichê'}</h3>
-                    <p className="text-6xl text-white font-bold">{senhaAtual.guiche}</p>
+                    <p className="text-6xl text-white font-bold">{exibirGuiche(senhaAtual.tipoGuiche || 'Guichê', senhaAtual.guiche)}</p>
                   </div>
                 </div>
 
@@ -160,7 +176,9 @@ export default function PainelPublico() {
               >
                 <div>
                   <div className="text-3xl font-bold text-white mb-1">{senha.numero}</div>
-                  <div className="text-secondary-400 text-sm font-medium">{senha.tipoGuiche || 'Guichê'} {senha.guiche}</div>
+                  <div className="text-secondary-400 text-sm font-medium">
+                    {senha.tipoGuiche || 'Guichê'} {exibirGuiche(senha.tipoGuiche || 'Guichê', senha.guiche)}
+                  </div>
                 </div>
                 <div className="text-right">
                   {senha.prioridade === 'prioritaria' && (

@@ -1,11 +1,35 @@
 import React, { useState } from 'react';
-import { useSenhas } from '../context/SenhasContext';
-import { Phone, CheckCircle, Volume2, Clock, AlertCircle, Settings, X, Save, Lock } from 'lucide-react';
+import { useSenhas, type TipoAtendimento } from '../context/SenhasContext';
+import { Phone, CheckCircle, Volume2, Clock, AlertCircle, Settings, X, Save, Lock, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import LoginLayout from './auth/LoginLayout';
 import LoginForm from './auth/LoginForm';
 import ChangePasswordModal from './auth/ChangePasswordModal';
+import BeneficiaryHistoryModal from './ui/BeneficiaryHistoryModal';
 import logo from '../assets/logo.svg';
+
+// Constantes para nomes das salas
+const NOMES_SALAS = [
+  'Tec 04',      // Índice 0 -> guiche: 1
+  'Tec 02',      // Índice 1 -> guiche: 2
+  'Tec 03',      // Índice 2 -> guiche: 3
+  'Tec 01',      // Índice 3 -> guiche: 4
+  'Contrato',    // Índice 4 -> guiche: 5
+  'Coordenação', // Índice 5 -> guiche: 6
+  'Financeiro'   // Índice 6 -> guiche: 7
+];
+
+// Funções auxiliares para conversão
+const obterNomeSala = (guiche: number): string => NOMES_SALAS[guiche - 1] || guiche.toString();
+const obterNumeroSala = (nome: string): number => NOMES_SALAS.indexOf(nome) + 1;
+
+// Função para exibir guichê/sala corretamente
+const exibirGuiche = (tipoGuiche: string, guiche: number): string => {
+  if (tipoGuiche === 'Sala' && guiche >= 1 && guiche <= 7) {
+    return obterNomeSala(guiche);
+  }
+  return guiche.toString();
+};
 
 export default function Atendente() {
   const { senhas, usuarios, servicos, chamarSenha, iniciarAtendimento, finalizarAtendimento, cancelarSenha, repetirSenha, login, logout, atualizarSessaoAtendente, naoApareceu } = useSenhas();
@@ -20,15 +44,16 @@ export default function Atendente() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // User Session State
-  const [usuarioLogado, setUsuarioLogado] = useState<{ id: string, nome: string, guiche?: number, tipoGuiche?: string, tiposAtendimento?: any } | null>(null);
+  const [usuarioLogado, setUsuarioLogado] = useState<{ id: string, nome: string, guiche?: number, tipoGuiche?: string, tiposAtendimento?: any, isAdmin?: boolean, funcao?: string } | null>(null);
   const [guiche, setGuiche] = useState(1);
   const [tipoGuiche, setTipoGuiche] = useState('Guichê'); // Novo state
-  const [tiposAtendimentoLocal, setTiposAtendimentoLocal] = useState<string[]>([]);
+  const [tiposAtendimentoLocal, setTiposAtendimentoLocal] = useState<TipoAtendimento[]>([]);
   const [modalConfigOpen, setModalConfigOpen] = useState(false);
   const [tempGuiche, setTempGuiche] = useState(1);
   const [tempTipoGuiche, setTempTipoGuiche] = useState('Guichê');
-  const [tempTipos, setTempTipos] = useState<string[]>([]);
+  const [tempTipos, setTempTipos] = useState<TipoAtendimento[]>([]);
   const [changePassOpen, setChangePassOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   // Initial config load effect
   React.useEffect(() => {
@@ -52,7 +77,7 @@ export default function Atendente() {
     // but even if we don't, empty list = 'Show All' in filter logic.
     const isAdmin = usuarioLogado && (usuarioLogado.isAdmin || usuarioLogado.funcao === 'Administrador');
     if (isAdmin && tiposParaSalvar.length === 0) {
-      tiposParaSalvar = servicos.filter(s => s.ativo).map(s => s.nome);
+      tiposParaSalvar = (servicos || []).filter(s => s.ativo).map(s => s.nome as TipoAtendimento);
     }
 
     // VALIDATION REMOVED: Allow proceeding with 0 services (defaults to viewing all)
@@ -129,6 +154,7 @@ export default function Atendente() {
   const handleChamarSenha = () => {
     if (!usuarioLogado) return;
 
+    console.log('[DEBUG] Chamando senha com:', { guiche, tipoGuiche, atendente: usuarioLogado.nome });
     chamarSenha({
       guiche,
       tipoGuiche,
@@ -165,6 +191,13 @@ export default function Atendente() {
                   setUsuarioLogado(fullUser);
                   setTempGuiche(fullUser.guiche || 1);
                   setTempTipoGuiche(fullUser.tipoGuiche || 'Guichê');
+                  // Initialize actual state too, to prevent default 'Guichê' if modal is bypassed or fails
+                  setGuiche(fullUser.guiche || 1);
+                  setTipoGuiche(fullUser.tipoGuiche || 'Guichê');
+                  if (fullUser.tiposAtendimento) {
+                    setTiposAtendimentoLocal(fullUser.tiposAtendimento as TipoAtendimento[]);
+                    setTempTipos(fullUser.tiposAtendimento as TipoAtendimento[]);
+                  }
                 } else {
                   setLoginError('Acesso negado. Apenas atendentes.');
                 }
@@ -190,7 +223,9 @@ export default function Atendente() {
         <div className="flex items-center gap-4">
           <img src={logo} alt="Logo" className="w-12 h-12 object-contain" />
           <div>
-            <h1 className="text-xl font-bold text-gray-800">{tipoGuiche} {guiche}</h1>
+            <h1 className="text-xl font-bold text-gray-800">
+              {tipoGuiche} {exibirGuiche(tipoGuiche, guiche)}
+            </h1>
             <p className="text-sm text-gray-500 flex items-center gap-1">
               <CheckCircle className="w-3 h-3 text-green-500" /> {usuarioLogado?.nome}
             </p>
@@ -273,8 +308,14 @@ export default function Atendente() {
                 {/* HISTÓRICO DO CIDADÃO */}
                 {senhaAtual.cpf && (
                   <div className="mb-8 bg-blue-50/50 rounded-2xl p-4 border border-blue-100">
-                    <h4 className="text-sm font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-2">
-                      <Clock className="w-4 h-4" /> Histórico de Visitas
+                    <h4 className="text-sm font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2"><Clock className="w-4 h-4" /> Histórico Recente</span>
+                      <button
+                        onClick={() => setIsHistoryModalOpen(true)}
+                        className="bg-white hover:bg-white/80 text-blue-600 text-xs px-3 py-1 rounded-lg border border-blue-200 transition-colors shadow-sm"
+                      >
+                        Ver Tudo e Estatísticas
+                      </button>
                     </h4>
 
                     {senhas.filter(s => s.cpf === senhaAtual.cpf && s.id !== senhaAtual.id).length > 0 ? (
@@ -438,21 +479,46 @@ export default function Atendente() {
 
               {/* Number Selection 1-10 */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Número da {tempTipoGuiche}</label>
-                <div className="grid grid-cols-5 gap-3">
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
-                    <button
-                      key={num}
-                      onClick={() => setTempGuiche(num)}
-                      className={`h-12 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center ${tempGuiche === num
-                        ? 'bg-green-600 text-white shadow-lg shadow-green-200 transform -translate-y-1'
-                        : 'bg-white border-2 border-gray-100 text-gray-600 hover:border-green-400 hover:text-green-600'
-                        }`}
-                    >
-                      {num}
-                    </button>
-                  ))}
-                </div>
+                <label className="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">
+                  {tempTipoGuiche === 'Guichê' ? 'Número do Guichê' : 'Selecione a Sala'}
+                </label>
+
+                {tempTipoGuiche === 'Guichê' ? (
+                  // Guichê: Mostrar números 1-10
+                  <div className="grid grid-cols-5 gap-3">
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
+                      <button
+                        key={num}
+                        onClick={() => setTempGuiche(num)}
+                        className={`h-12 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center ${tempGuiche === num
+                          ? 'bg-green-600 text-white shadow-lg shadow-green-200 transform -translate-y-1'
+                          : 'bg-white border-2 border-gray-100 text-gray-600 hover:border-green-400 hover:text-green-600'
+                          }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  // Sala: Mostrar nomes das salas
+                  <div className="grid grid-cols-1 gap-3">
+                    {NOMES_SALAS.map((nomeSala, index) => {
+                      const numeroSala = index + 1;
+                      return (
+                        <button
+                          key={nomeSala}
+                          onClick={() => setTempGuiche(numeroSala)}
+                          className={`h-14 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center ${tempGuiche === numeroSala
+                            ? 'bg-green-600 text-white shadow-lg shadow-green-200 transform -translate-y-1'
+                            : 'bg-white border-2 border-gray-100 text-gray-600 hover:border-green-400 hover:text-green-600'
+                            }`}
+                        >
+                          {nomeSala}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
 
@@ -481,6 +547,16 @@ export default function Atendente() {
           />
         )
       }
+
+      {usuarioLogado && senhaAtual?.cpf && (
+        <BeneficiaryHistoryModal
+          isOpen={isHistoryModalOpen}
+          onClose={() => setIsHistoryModalOpen(false)}
+          cpf={senhaAtual.cpf}
+          nome={senhaAtual.nome}
+        />
+      )}
+
     </div >
   );
 }

@@ -50,3 +50,18 @@ model Servico {
   nome  String  @unique
   ativo Boolean @default(true)
 }
+
+model Agendamento {
+  id           String   @id @default(uuid())
+  nome         String
+  cpf          String?
+  telefone     String?
+  bairro       String?
+  dataAgendada String
+  horaAgendada String?
+  observacoes  String?
+  status       String   @default("pendente")
+  tipo         String
+  prioridade   String
+  criadoEm     DateTime @default(now())
+}

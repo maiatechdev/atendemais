@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tv, UserCircle, TicketPlus, Shield, ArrowRight } from 'lucide-react';
+import { Tv, UserCircle, Ticket, Shield, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import logo from '../assets/logo.svg';
@@ -29,7 +29,7 @@ export default function Home() {
       path: '/gerador',
       title: 'Recepção',
       description: 'Triagem e emissão de tickets',
-      icon: TicketPlus,
+      icon: Ticket,
       color: 'bg-secondary-600',
     },
     {

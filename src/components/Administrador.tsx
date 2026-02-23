@@ -454,7 +454,7 @@ export default function Administrador() {
                                                 <div className="col-span-2 space-y-3 p-4 bg-secondary-50 border border-secondary-200 rounded-lg">
                                                     <label className="block text-sm font-semibold text-secondary-700">Serviços Atendidos</label>
                                                     <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                                        {servicos.filter(s => s.ativo).map(s => (
+                                                        {(servicos || []).filter(s => s.ativo).map(s => (
                                                             <label key={s.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded transition-colors">
                                                                 <input
                                                                     type="checkbox"
@@ -527,12 +527,12 @@ export default function Administrador() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-secondary-100">
-                                    {servicos.length === 0 ? (
+                                    {(servicos || []).length === 0 ? (
                                         <tr>
                                             <td colSpan={3} className="px-6 py-8 text-center text-secondary-500">Nenhum serviço cadastrado.</td>
                                         </tr>
                                     ) : (
-                                        servicos.map((servico) => (
+                                        (servicos || []).map((servico) => (
                                             <tr key={servico.id} className="hover:bg-secondary-50/50 transition-colors">
                                                 <td className="px-6 py-4 font-medium text-secondary-900">{servico.nome}</td>
                                                 <td className="px-6 py-4 text-center">

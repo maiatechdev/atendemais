@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react'; // Context Updated
 import { io, Socket } from 'socket.io-client';
 
 export type StatusSenha = 'aguardando' | 'chamada' | 'atendendo' | 'concluida' | 'cancelada';
@@ -23,6 +23,21 @@ export interface Senha {
   bairro?: string;
 }
 
+export interface Agendamento {
+  id: string;
+  nome: string;
+  cpf?: string;
+  telefone?: string;
+  bairro?: string;
+  dataAgendada: string;
+  horaAgendada?: string;
+  observacoes?: string;
+  status: 'pendente' | 'confirmado' | 'cancelado';
+  tipo: TipoAtendimento;
+  prioridade: Prioridade;
+  criadoEm?: Date;
+}
+
 export interface Servico {
   id: string;
   nome: string;
@@ -34,7 +49,6 @@ export interface Usuario {
   nome: string;
   email: string;
   funcao: 'Atendente' | 'Gerador' | 'Administrador';
-  isAdmin?: boolean;
   isAdmin?: boolean;
   guiche?: number;
   tipoGuiche?: string; // New field
@@ -76,6 +90,14 @@ interface SenhasContextType {
   logout: () => void;
   atualizarSessaoAtendente: (userId: string, guiche: number, tipoGuiche: string, tiposAtendimento: string[]) => void;
   alterarSenha: (userId: string, oldPass: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
+
+  // Scheduling Methods
+  agendamentos: Agendamento[];
+  agendar: (dados: Omit<Agendamento, 'id' | 'status' | 'criadoEm'>) => Promise<any>;
+  confirmarAgendamento: (id: string) => Promise<any>;
+  cancelarAgendamento: (id: string) => Promise<any>;
+  listarAgendamentos: (data: string) => void;
+  buscarHistoricoBeneficiario: (cpf: string) => Promise<{ senhas: Senha[], agendamentos: Agendamento[] }>;
 }
 
 const SenhasContext = createContext<SenhasContextType | undefined>(undefined);
@@ -105,7 +127,27 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [senhaAtual, setSenhaAtual] = useState<Senha | null>(null);
   const [ultimasSenhas, setUltimasSenhas] = useState<Senha[]>([]);
+  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const socketRef = React.useRef<Socket | null>(null);
+
+
+  const fetchInitialData = (socket: Socket) => {
+    // Fetch initial users
+    socket.emit('admin_get_users', (resp: any) => {
+      if (resp.success) {
+        const parsedUsers = resp.data.map((u: any) => ({
+          ...u,
+          tiposAtendimento: typeof u.tiposAtendimento === 'string' ? JSON.parse(u.tiposAtendimento) : u.tiposAtendimento
+        }));
+        setUsuarios(parsedUsers);
+      }
+    });
+
+    // Fetch initial services
+    socket.emit('admin_get_services', (resp: any) => {
+      if (resp.success) setServicos(resp.data);
+    });
+  };
 
   useEffect(() => {
     const socket = io();
@@ -113,23 +155,18 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     socket.on('connect', () => {
       console.log('Conectado ao servidor Socket.io');
-      // Fetch initial users
-      socket.emit('admin_get_users', (resp: any) => {
-        if (resp.success) {
-          // Parse tiposAtendimento if necessary
-          const parsedUsers = resp.data.map((u: any) => ({
-            ...u,
-            tiposAtendimento: typeof u.tiposAtendimento === 'string' ? JSON.parse(u.tiposAtendimento) : u.tiposAtendimento
-          }));
-          setUsuarios(parsedUsers);
-        }
-      });
-
-      // Fetch initial services
-      socket.emit('admin_get_services', (resp: any) => {
-        if (resp.success) setServicos(resp.data);
-      });
+      fetchInitialData(socket);
     });
+
+    // Also fetch immediately if already connected (re-mount scenario)
+    if (socket.connected) {
+      fetchInitialData(socket);
+    }
+
+    // Fallback: Try fetching after a slight delay to ensure connection
+    setTimeout(() => {
+      if (socket.connected) fetchInitialData(socket);
+    }, 1000);
 
     socket.on('servicesUpdated', (updatedServices: Servico[]) => {
       setServicos(updatedServices);
@@ -162,6 +199,14 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         tiposAtendimento: typeof u.tiposAtendimento === 'string' ? JSON.parse(u.tiposAtendimento) : u.tiposAtendimento
       }));
       setUsuarios(parsedUsers);
+    });
+
+    socket.on('appointmentsUpdated', (payload: { date: string, data: any[] }) => {
+      // Simplification: always replace if it matches "today" or we store a map? 
+      // For now, let's just store the list if the user is viewing that date. 
+      // Actually, simplest is just to expose the list and let the component filter or request.
+      // But here we are just receiving a list.
+      setAgendamentos(payload.data);
     });
 
     return () => {
@@ -348,6 +393,59 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const agendar = (dados: Omit<Agendamento, 'id' | 'status' | 'criadoEm'>): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current) return reject('Offline');
+      socketRef.current.emit('schedule_appointment', dados, (resp: any) => {
+        if (resp.success) resolve(resp.data);
+        else reject(resp.error);
+      });
+    });
+  };
+
+  const confirmarAgendamento = (id: string): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current) return reject('Offline');
+      socketRef.current.emit('confirm_appointment', id, (resp: any) => {
+        if (resp.success) resolve(resp.ticket);
+        else reject(resp.error);
+      });
+    });
+  };
+
+  const cancelarAgendamento = (id: string): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current) return reject('Offline');
+      socketRef.current.emit('cancel_appointment', id, (resp: any) => {
+        if (resp.success) resolve(true);
+        else reject(resp.error);
+      });
+    });
+  };
+
+  const listarAgendamentos = (date: string) => {
+    if (socketRef.current) {
+      socketRef.current.emit('get_appointments', date, (response: any) => {
+        if (response.success) {
+          setAgendamentos(response.data);
+        }
+      });
+    }
+  };
+
+  const buscarHistoricoBeneficiario = (cpf: string): Promise<{ senhas: Senha[], agendamentos: Agendamento[] }> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current) return reject('Offline');
+      socketRef.current.emit('get_beneficiary_history', cpf, (response: any) => {
+        if (response.success) {
+          resolve(response.data);
+        } else {
+          reject(response.error);
+        }
+      });
+    });
+  };
+
   return (
     <SenhasContext.Provider
       value={{
@@ -374,7 +472,13 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         login,
         logout,
         atualizarSessaoAtendente,
-        alterarSenha
+        alterarSenha,
+        agendamentos,
+        agendar,
+        confirmarAgendamento,
+        cancelarAgendamento,
+        listarAgendamentos,
+        buscarHistoricoBeneficiario
       }}
     >
       {children}

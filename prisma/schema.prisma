@@ -65,3 +65,13 @@ model Agendamento {
   prioridade   String
   criadoEm     DateTime @default(now())
 }
+
+model Mensagem {
+  id               String   @id @default(uuid())
+  autorId          String
+  autorNome        String
+  destinatarioId   String?  // Opcional: nulo significa mensagem geral/broadcast
+  destinatarioNome String?
+  texto            String
+  criadoEm         DateTime @default(now())
+}

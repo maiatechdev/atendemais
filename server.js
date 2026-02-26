@@ -285,82 +285,86 @@ async function startServer() {
         // 3. Handle 'call_ticket' (Chamar Senha) - ATOMIC VERSION
         socket.on('call_ticket', async (data) => {
             try {
-                const { guiche, atendente, tiposPermitidos, tipoGuiche } = data;
-                console.log(`[Call Ticket] Guichê ${guiche}, Tipo: ${tipoGuiche || 'Guichê'}, Atendente: ${atendente}`);
-
-                // Construir cláusula where
-                let whereClause = {
-                    status: 'aguardando'
-                };
-
-                // Se o atendente tem tipos permitidos, filtrar por eles
-                if (tiposPermitidos && tiposPermitidos.length > 0) {
-                    whereClause.tipo = { in: tiposPermitidos };
-                };
-
-                // Busca TODOS os candidatos para ordenar corretamente na memória (Prisma e SQLite têm limitações de sort complexo misto)
-                // Nota: Em sistemas gigantes, isso seria paginado, mas para fila local é rápido.
-                const candidatos = await prisma.senha.findMany({
-                    where: whereClause,
-                    orderBy: [
-                        { prioridade: 'desc' }, // 'prioritaria' > 'normal' (alfabético inverso P > N... cuidado, vamos ajustar)
-                        // Ajuste: Vamos ordenar manualmente no JS para garantir a regra de negócio exata
-                    ]
-                });
-
-                // Ordenação Robustez (Regra de Negócio):
-                // 1. Prioridade (prioritaria+ > prioritaria > normal)
-                // 2. Ordem de Chegada (horaGeracao)
-
-                // Helper function to assign numeric priority values
-                const prioridadeValor = (p) => {
-                    if (p === 'prioritaria+') return 3;
-                    if (p === 'prioritaria') return 2;
-                    return 1; // normal
-                };
-
-                const filaOrdenada = candidatos.sort((a, b) => {
-                    const prioA = prioridadeValor(a.prioridade);
-                    const prioB = prioridadeValor(b.prioridade);
-
-                    if (prioA !== prioB) {
-                        return prioB - prioA; // Maior prioridade primeiro
-                    }
-                    return new Date(a.horaGeracao).getTime() - new Date(b.horaGeracao).getTime();
-                });
-
-                if (filaOrdenada.length === 0) return; // Ninguém na fila
-
-                // TENTATIVA ATÔMICA (O "Pulo do Gato" para evitar o Jantar dos Filósofos)
-                // Tentamos pegar o primeiro. Se falhar (alguém pegou milissegundos antes),
-                // o update retornará count: 0.
+                const { guiche, atendente, tiposPermitidos, tipoGuiche, senhaId } = data;
+                console.log(`[Call Ticket] Guichê ${guiche}, Tipo: ${tipoGuiche || 'Guichê'}, Atendente: ${atendente}, Senha Escolhida: ${senhaId || 'Nenhuma'}`);
 
                 let ticketChamado = null;
 
-                for (const candidato of filaOrdenada) {
-                    // Update atômico: "Atualize para MIM, mas SÓ SE ainda for 'aguardando'"
+                // Caso 1: Foi solicitada uma senha específica
+                if (senhaId) {
                     const result = await prisma.senha.updateMany({
                         where: {
-                            id: candidato.id,
-                            status: 'aguardando' // A Cláusula de Segurança
+                            id: senhaId,
+                            status: 'aguardando'
                         },
                         data: {
                             status: 'chamada',
                             guiche,
-                            tipoGuiche: tipoGuiche || 'Guichê', // Save tipoGuiche
+                            tipoGuiche: tipoGuiche || 'Guichê',
                             atendente,
                             horaChamada: new Date()
                         }
                     });
 
                     if (result.count > 0) {
-                        // Sucesso! Conseguimos pegar esse ticket exclusivamente.
-                        // Agora buscamos os dados atualizados para exibir.
-                        ticketChamado = await prisma.senha.findUnique({ where: { id: candidato.id } });
-                        break; // Sai do loop, já comemos!
+                        ticketChamado = await prisma.senha.findUnique({ where: { id: senhaId } });
                     }
-                    // Se count == 0, significa que outro "filósofo" pegou esse ticket nesse meio tempo.
-                    // O loop continua e tenta o próximo da fila imediatamente.
+                }
+
+                // Caso 2: Chamar próximo automático (Fallback se senhaId não informado ou já pega)
+                if (!ticketChamado) {
+                    // Construir cláusula where
+                    let whereClause = {
+                        status: 'aguardando'
+                    };
+
+                    // Se o atendente tem tipos permitidos, filtrar por eles
+                    if (tiposPermitidos && tiposPermitidos.length > 0) {
+                        whereClause.tipo = { in: tiposPermitidos };
+                    };
+
+                    // Busca candidatos para ordenar
+                    const candidatos = await prisma.senha.findMany({
+                        where: whereClause
+                    });
+
+                    // Helper function to assign numeric priority values
+                    const prioridadeValor = (p) => {
+                        if (p === 'prioritaria+') return 3;
+                        if (p === 'prioritaria') return 2;
+                        return 1; // normal
+                    };
+
+                    const filaOrdenada = candidatos.sort((a, b) => {
+                        const prioA = prioridadeValor(a.prioridade);
+                        const prioB = prioridadeValor(b.prioridade);
+
+                        if (prioA !== prioB) {
+                            return prioB - prioA; // Maior prioridade primeiro
+                        }
+                        return new Date(a.horaGeracao).getTime() - new Date(b.horaGeracao).getTime();
+                    });
+
+                    for (const candidato of filaOrdenada) {
+                        const result = await prisma.senha.updateMany({
+                            where: {
+                                id: candidato.id,
+                                status: 'aguardando'
+                            },
+                            data: {
+                                status: 'chamada',
+                                guiche,
+                                tipoGuiche: tipoGuiche || 'Guichê',
+                                atendente,
+                                horaChamada: new Date()
+                            }
+                        });
+
+                        if (result.count > 0) {
+                            ticketChamado = await prisma.senha.findUnique({ where: { id: candidato.id } });
+                            break;
+                        }
+                    }
                 }
 
                 if (ticketChamado) {
@@ -368,12 +372,8 @@ async function startServer() {
                     io.emit('stateUpdated', newState);
                     console.log(`Senha ${ticketChamado.numero} chamada no ${tipoGuiche || 'Guichê'} ${guiche} (Atômico)`);
                 }
-
-                // Timeout para 'atendendo'
-                // Auto-timeout removed to allow manual start
-                // setTimeout(async () => { ... }, 2000);
             } catch (e) {
-                console.error("Erro em call_ticket (Atomic):", e);
+                console.error("Erro em call_ticket (Pick-Ticket):", e);
             }
         });
 
@@ -884,6 +884,72 @@ async function startServer() {
 
                 if (callback) callback({ success: true, data: { senhas, agendamentos } });
             } catch (e) {
+                if (callback) callback({ success: false, error: e.message });
+            }
+        });
+
+        // --- CHAT EVENTS ---
+
+        // chat_get_history: Return last 100 relevant messages
+        socket.on('chat_get_history', async (data, callback) => {
+            try {
+                const { usuarioId } = data || {};
+                const mensagens = await prisma.mensagem.findMany({
+                    where: {
+                        OR: [
+                            { destinatarioId: null }, // Geral
+                            { autorId: usuarioId },    // Enviadas pelo usuário
+                            { destinatarioId: usuarioId } // Recebidas pelo usuário
+                        ]
+                    },
+                    orderBy: { criadoEm: 'asc' },
+                    take: 100
+                });
+                if (callback) callback({ success: true, data: mensagens });
+            } catch (e) {
+                console.error('[Chat] Erro ao buscar histórico:', e);
+                if (callback) callback({ success: false, error: e.message });
+            }
+        });
+
+        // chat_send_message: Save message and broadcast or targeted emit
+        socket.on('chat_send_message', async (data, callback) => {
+            try {
+                const { autorId, autorNome, texto, destinatarioId, destinatarioNome } = data;
+                if (!texto || !texto.trim()) {
+                    if (callback) callback({ success: false, error: 'Mensagem vazia.' });
+                    return;
+                }
+
+                const novaMensagem = await prisma.mensagem.create({
+                    data: {
+                        autorId,
+                        autorNome,
+                        texto: texto.trim(),
+                        destinatarioId: destinatarioId || null,
+                        destinatarioNome: destinatarioNome || null
+                    }
+                });
+
+                if (destinatarioId) {
+                    // Mensagem Privada: Emitir apenas para o autor e o destinatário
+                    // Precisamos encontrar os sockets do destinatário
+                    const allSockets = Array.from(onlineUsers.entries());
+                    const recipientSockets = allSockets.filter(([sid, uid]) => uid === destinatarioId).map(([sid, uid]) => sid);
+                    const senderSockets = allSockets.filter(([sid, uid]) => uid === autorId).map(([sid, uid]) => sid);
+
+                    const targets = [...new Set([...recipientSockets, ...senderSockets])];
+                    targets.forEach(sid => {
+                        io.to(sid).emit('chat_new_message', novaMensagem);
+                    });
+                } else {
+                    // Mensagem Geral: Broadcast para todos
+                    io.emit('chat_new_message', novaMensagem);
+                }
+
+                if (callback) callback({ success: true, data: novaMensagem });
+            } catch (e) {
+                console.error('[Chat] Erro ao enviar mensagem:', e);
                 if (callback) callback({ success: false, error: e.message });
             }
         });

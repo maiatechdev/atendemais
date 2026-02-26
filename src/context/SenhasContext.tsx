@@ -58,9 +58,20 @@ export interface Usuario {
 
 interface ChamarSenhaOptions {
   guiche: number;
-  tipoGuiche?: string; // New field
+  tipoGuiche?: string;
   atendente: string;
   tiposPermitidos?: TipoAtendimento[];
+  senhaId?: string; // Add specific ticket ID support
+}
+
+export interface ChatMessage {
+  id: string;
+  autorId: string;
+  autorNome: string;
+  destinatarioId?: string; // Nulo para geral
+  destinatarioNome?: string;
+  texto: string;
+  criadoEm: string;
 }
 
 interface SenhasContextType {
@@ -98,6 +109,12 @@ interface SenhasContextType {
   cancelarAgendamento: (id: string) => Promise<any>;
   listarAgendamentos: (data: string) => void;
   buscarHistoricoBeneficiario: (cpf: string) => Promise<{ senhas: Senha[], agendamentos: Agendamento[] }>;
+
+  // Chat Methods
+  mensagensChat: ChatMessage[];
+  enviarMensagem: (autorId: string, autorNome: string, texto: string, destinatarioId?: string, destinatarioNome?: string) => void;
+  buscarHistoricoChat: (usuarioId?: string) => void;
+  registerUserInChat: (userId: string) => void;
 }
 
 const SenhasContext = createContext<SenhasContextType | undefined>(undefined);
@@ -128,6 +145,7 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [senhaAtual, setSenhaAtual] = useState<Senha | null>(null);
   const [ultimasSenhas, setUltimasSenhas] = useState<Senha[]>([]);
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const [mensagensChat, setMensagensChat] = useState<ChatMessage[]>([]);
   const socketRef = React.useRef<Socket | null>(null);
 
 
@@ -202,11 +220,12 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     socket.on('appointmentsUpdated', (payload: { date: string, data: any[] }) => {
-      // Simplification: always replace if it matches "today" or we store a map? 
-      // For now, let's just store the list if the user is viewing that date. 
-      // Actually, simplest is just to expose the list and let the component filter or request.
-      // But here we are just receiving a list.
       setAgendamentos(payload.data);
+    });
+
+    // Chat: receive new messages in real-time
+    socket.on('chat_new_message', (msg: ChatMessage) => {
+      setMensagensChat(prev => [...prev, msg]);
     });
 
     return () => {
@@ -242,9 +261,9 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const chamarSenha = ({ guiche, atendente, tiposPermitidos, tipoGuiche }: ChamarSenhaOptions) => {
+  const chamarSenha = ({ guiche, atendente, tiposPermitidos, tipoGuiche, senhaId }: ChamarSenhaOptions) => {
     if (socketRef.current) {
-      socketRef.current.emit('call_ticket', { guiche, atendente, tiposPermitidos, tipoGuiche });
+      socketRef.current.emit('call_ticket', { guiche, atendente, tiposPermitidos, tipoGuiche, senhaId });
     }
   };
 
@@ -433,6 +452,30 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const registerUserInChat = (userId: string) => {
+    if (socketRef.current) {
+      socketRef.current.emit('chat_register_user', { userId });
+    }
+  };
+
+  const enviarMensagem = (autorId: string, autorNome: string, texto: string, destinatarioId?: string, destinatarioNome?: string) => {
+    if (socketRef.current) {
+      socketRef.current.emit('chat_send_message', { autorId, autorNome, texto, destinatarioId, destinatarioNome }, (resp: any) => {
+        if (!resp.success) {
+          console.error('[Chat] Erro ao enviar mensagem:', resp.error);
+        }
+      });
+    }
+  };
+
+  const buscarHistoricoChat = (usuarioId?: string) => {
+    if (socketRef.current) {
+      socketRef.current.emit('chat_get_history', { usuarioId }, (resp: any) => {
+        if (resp.success) setMensagensChat(resp.data);
+      });
+    }
+  };
+
   const buscarHistoricoBeneficiario = (cpf: string): Promise<{ senhas: Senha[], agendamentos: Agendamento[] }> => {
     return new Promise((resolve, reject) => {
       if (!socketRef.current) return reject('Offline');
@@ -478,7 +521,11 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         confirmarAgendamento,
         cancelarAgendamento,
         listarAgendamentos,
-        buscarHistoricoBeneficiario
+        buscarHistoricoBeneficiario,
+        mensagensChat,
+        enviarMensagem,
+        buscarHistoricoChat,
+        registerUserInChat
       }}
     >
       {children}

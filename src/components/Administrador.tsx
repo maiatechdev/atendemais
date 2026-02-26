@@ -6,6 +6,7 @@ import HistoryView from './admin/HistoryView';
 import LoginLayout from './auth/LoginLayout';
 import LoginForm from './auth/LoginForm';
 import ChangePasswordModal from './auth/ChangePasswordModal';
+import ChatWidget from './ui/ChatWidget';
 import { useSenhas, type Usuario, type Senha } from '../context/SenhasContext';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
@@ -754,6 +755,11 @@ export default function Administrador() {
                     />
                 )
             }
+
+            {/* Floating Chat */}
+            {currentUser && (
+                <ChatWidget usuarioId={currentUser.id} usuarioNome={currentUser.nome} />
+            )}
         </div >
     );
 }

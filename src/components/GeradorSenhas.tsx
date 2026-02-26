@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import LoginLayout from './auth/LoginLayout';
 import LoginForm from './auth/LoginForm';
 import ChangePasswordModal from './auth/ChangePasswordModal';
+import ChatWidget from './ui/ChatWidget';
 // import BeneficiaryHistoryModal from './ui/BeneficiaryHistoryModal';
 import logo from '../assets/logo.svg';
 
@@ -263,10 +264,11 @@ export default function GeradorSenhas() {
             try {
               const response = await login(email, password);
               if (response.success && response.user) {
-                const user = response.user;
-                if (user.funcao === 'Gerador' || user.funcao === 'Administrador' || user.isAdmin) {
+                const fullUser = usuarios.find(u => u.id === response.user!.id);
+                const userToSet = fullUser || response.user!;
+                if (userToSet.funcao === 'Gerador' || userToSet.funcao === 'Administrador' || userToSet.isAdmin) {
                   setIsAuthenticated(true);
-                  setCurrentUser(user);
+                  setCurrentUser(userToSet);
                 } else {
                   setLoginError('Acesso negado. Área restrita.');
                 }
@@ -868,6 +870,12 @@ export default function GeradorSenhas() {
         nome={nome}
       /> 
       */}
+      {/* Floating Chat */}
+      {
+        currentUser && (
+          <ChatWidget usuarioId={currentUser.id} usuarioNome={currentUser.nome} />
+        )
+      }
     </div>
   );
 }

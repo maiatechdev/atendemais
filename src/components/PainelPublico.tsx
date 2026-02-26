@@ -51,7 +51,7 @@ export default function PainelPublico() {
     if ('speechSynthesis' in window) {
       const tipoGuicheTexto = ticket.tipoGuiche || 'Guichê';
       const guicheTexto = exibirGuiche(tipoGuicheTexto, ticket.guiche);
-      const text = `Senha ${ticket.numero}, ${ticket.nome}, ${tipoGuicheTexto} ${guicheTexto}`;
+      const text = `${ticket.nome}, favor comparecer à ${tipoGuicheTexto} ${guicheTexto}. Senha ${ticket.numero}.`;
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
       const voices = window.speechSynthesis.getVoices();

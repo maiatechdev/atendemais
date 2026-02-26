@@ -6,6 +6,7 @@ import LoginLayout from './auth/LoginLayout';
 import LoginForm from './auth/LoginForm';
 import ChangePasswordModal from './auth/ChangePasswordModal';
 import BeneficiaryHistoryModal from './ui/BeneficiaryHistoryModal';
+import ChatWidget from './ui/ChatWidget';
 import logo from '../assets/logo.svg';
 
 // Constantes para nomes das salas
@@ -186,17 +187,18 @@ export default function Atendente() {
               const response = await login(email, password);
               if (response.success && response.user) {
                 const fullUser = usuarios.find(u => u.id === response.user!.id);
-                if (fullUser && (fullUser.funcao === 'Atendente' || fullUser.isAdmin)) {
+                const userToSet = fullUser || response.user!;
+                if (userToSet && (userToSet.funcao === 'Atendente' || userToSet.isAdmin)) {
                   setLogado(true);
-                  setUsuarioLogado(fullUser);
-                  setTempGuiche(fullUser.guiche || 1);
-                  setTempTipoGuiche(fullUser.tipoGuiche || 'Guichê');
+                  setUsuarioLogado(userToSet);
+                  setTempGuiche(userToSet.guiche || 1);
+                  setTempTipoGuiche(userToSet.tipoGuiche || 'Guichê');
                   // Initialize actual state too, to prevent default 'Guichê' if modal is bypassed or fails
-                  setGuiche(fullUser.guiche || 1);
-                  setTipoGuiche(fullUser.tipoGuiche || 'Guichê');
-                  if (fullUser.tiposAtendimento) {
-                    setTiposAtendimentoLocal(fullUser.tiposAtendimento as TipoAtendimento[]);
-                    setTempTipos(fullUser.tiposAtendimento as TipoAtendimento[]);
+                  setGuiche(userToSet.guiche || 1);
+                  setTipoGuiche(userToSet.tipoGuiche || 'Guichê');
+                  if (userToSet.tiposAtendimento) {
+                    setTiposAtendimentoLocal(userToSet.tiposAtendimento as TipoAtendimento[]);
+                    setTempTipos(userToSet.tiposAtendimento as TipoAtendimento[]);
                   }
                 } else {
                   setLoginError('Acesso negado. Apenas atendentes.');
@@ -411,22 +413,36 @@ export default function Atendente() {
               </div>
             ) : (
               senhasAguardando.map((senha, index) => (
-                <div key={senha.id} className={`p-4 rounded-2xl border ${senha.prioridade.includes('prioritaria') ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'} hover:border-blue-300 transition-colors`}>
-                  <div className="flex justify-between items-start mb-2">
+                <div key={senha.id} className={`p-4 rounded-2xl border ${senha.prioridade.includes('prioritaria') ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'} hover:border-blue-300 transition-all flex flex-col gap-3 group relative`}>
+                  <div className="flex justify-between items-start">
                     <span className="font-bold text-xl text-gray-800">{senha.numero}</span>
-                    {senha.prioridade.includes('prioritaria') && (
-                      <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-bold uppercase">Prioridade</span>
-                    )}
+                    <div className="flex gap-2">
+                      {senha.prioridade.includes('prioritaria') && (
+                        <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-bold uppercase">Prioridade</span>
+                      )}
+                    </div>
                   </div>
-                  <h4 className="font-medium text-gray-700 mb-1">{senha.nome}</h4>
-                  <div className="text-xs text-gray-500 mb-2 flex flex-col gap-0.5">
-                    {senha.cpf && <span>CPF: {senha.cpf}</span>}
-                    {senha.bairro && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {senha.bairro}</span>}
+
+                  <div>
+                    <h4 className="font-medium text-gray-700 mb-0.5">{senha.nome}</h4>
+                    <div className="text-xs text-gray-500 flex flex-col gap-0.5">
+                      {senha.cpf && <span>CPF: {senha.cpf}</span>}
+                      {senha.bairro && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {senha.bairro}</span>}
+                    </div>
                   </div>
+
                   <div className="flex justify-between items-center text-sm text-gray-500 border-t border-gray-100 pt-2">
                     <span>{senha.tipo}</span>
                     <span>{calcularTempoEspera(senha.horaGeracao)} min</span>
                   </div>
+
+                  {/* Chamar específica button */}
+                  <button
+                    onClick={() => chamarSenha({ guiche, tipoGuiche, atendente: usuarioLogado!.nome, senhaId: senha.id })}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl font-bold text-sm shadow-md shadow-blue-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Volume2 className="w-4 h-4" /> Chamar Esta
+                  </button>
                 </div>
               ))
             )}
@@ -557,6 +573,10 @@ export default function Atendente() {
         />
       )}
 
+      {/* Floating Chat */}
+      {usuarioLogado && (
+        <ChatWidget usuarioId={usuarioLogado.id} usuarioNome={usuarioLogado.nome} />
+      )}
     </div >
   );
 }

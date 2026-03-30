@@ -17,7 +17,9 @@ const prisma = new PrismaClient();
 
 // Helper to get full state from DB for broadcast
 async function getFullState() {
-    const senhas = await prisma.senha.findMany();
+    const senhas = await prisma.senha.findMany({
+        where: { status: { not: 'cancelada' } } // Apenas senhas ativas e concluídas recentes
+    });
     const senhaAtual = await prisma.senha.findFirst({
         where: { status: { in: ['chamada', 'atendendo'] } },
         orderBy: { horaChamada: 'desc' }
@@ -245,7 +247,7 @@ async function startServer() {
         socket.on('request_ticket', async (data, callback) => {
             console.log('Recebido request_ticket:', data);
             try {
-                const { nome, tipo, prioridade } = data;
+                const { nome, tipo, prioridade, cpf, telefone, bairro } = data;
 
                 const configKey = (prioridade === 'prioritaria' || prioridade === 'prioritaria+') ? 'contadorPrioritaria' : 'contadorNormal';
                 const prefixo = prioridade === 'prioritaria+' ? 'P+' :
@@ -266,6 +268,9 @@ async function startServer() {
                         nome,
                         tipo,
                         prioridade,
+                        cpf,
+                        telefone,
+                        bairro,
                         status: 'aguardando',
                         horaGeracao: new Date()
                     }

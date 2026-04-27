@@ -4,7 +4,6 @@ import { fileURLToPath } from 'url';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { createServer as createViteServer } from 'vite';
 import { randomUUID } from 'crypto';
 import { createRequire } from 'module';
 
@@ -162,6 +161,7 @@ async function startServer() {
         });
     } else {
         console.log('Ambiente: DESENVOLVIMENTO (Usando Vite Middleware)');
+        const { createServer: createViteServer } = await import('vite');
         const vite = await createViteServer({
             server: { middlewareMode: true },
             appType: 'spa',

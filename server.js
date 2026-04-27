@@ -47,6 +47,7 @@ async function getFullState() {
     };
 }
 
+//verificação de reset diário
 async function checkDailyReset() {
     try {
         const today = new Date().toISOString().split('T')[0];
@@ -116,17 +117,15 @@ async function startServer() {
             await prisma.usuario.create({
                 data: {
                     nome: 'Administrador',
-                    email: 'admin', // Login simples
-                    senha: 'admin', // Senha simples
+                    email: 'admin', 
+                    senha: 'admin', 
                     isAdmin: true,
                     funcao: 'Administrador'
                 }
             });
         }
 
-        // Inicializar Serviços Padrão
-        // Inicializar Serviços Padrão - REMOVIDO A PEDIDO DO USUÁRIO
-        // O sistema agora permite ter 0 serviços sem recriar os padrões.
+        
     } catch (e) {
         console.error("Erro na inicialização do DB:", e);
     }
@@ -143,7 +142,7 @@ async function startServer() {
     const httpServer = createServer(app);
     const io = new Server(httpServer, {
         cors: {
-            origin: "*",
+            origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : "*",
             methods: ["GET", "POST"]
         }
     });

@@ -168,7 +168,8 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   useEffect(() => {
-    const socket = io();
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+    const socket = io(backendUrl);
     socketRef.current = socket;
 
     socket.on('connect', () => {

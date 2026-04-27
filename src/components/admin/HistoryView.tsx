@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Calendar, User, Download, FileText, ChevronLeft, ChevronRight, BarChart2 } from 'lucide-react';
+import { Search, User, Download, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSenhas, type Senha } from '../../context/SenhasContext';
 import BeneficiaryHistoryModal from '../ui/BeneficiaryHistoryModal';
 import { format } from 'date-fns';
@@ -19,6 +19,57 @@ export default function HistoryView() {
         setSelectedCpf(cpf);
         setSelectedName(nome);
         setIsModalOpen(true);
+    };
+
+    const exportToCSV = () => {
+        const hoje = format(new Date(), 'yyyy-MM-dd');
+        let headers: string[];
+        let rows: string[][];
+
+        if (viewMode === 'senhas') {
+            headers = ['Data/Hora Geração', 'Senha', 'Nome', 'CPF', 'Telefone', 'Bairro', 'Serviço', 'Prioridade', 'Status', 'Guichê', 'Atendente', 'Hora Chamada', 'Hora Finalização'];
+            rows = filteredSenhas.map(s => [
+                new Date(s.horaGeracao).toLocaleString('pt-BR'),
+                s.numero,
+                s.nome,
+                s.cpf || '',
+                s.telefone || '',
+                s.bairro || '',
+                s.tipo,
+                s.prioridade,
+                s.status,
+                s.guiche ? `Guichê ${s.guiche}` : '',
+                s.atendente || '',
+                s.horaChamada ? new Date(s.horaChamada).toLocaleString('pt-BR') : '',
+                s.horaFinalizacao ? new Date(s.horaFinalizacao).toLocaleString('pt-BR') : '',
+            ]);
+        } else {
+            headers = ['Data Agendada', 'Hora', 'Nome', 'CPF', 'Telefone', 'Bairro', 'Serviço', 'Prioridade', 'Status', 'Observações'];
+            rows = filteredAppointments.map(a => [
+                a.dataAgendada.split('-').reverse().join('/'),
+                a.horaAgendada || '',
+                a.nome,
+                a.cpf || '',
+                a.telefone || '',
+                a.bairro || '',
+                a.tipo,
+                a.prioridade,
+                a.status,
+                a.observacoes || '',
+            ]);
+        }
+
+        const csvContent = [headers, ...rows]
+            .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${viewMode === 'senhas' ? 'senhas' : 'agendamentos'}_${hoje}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
     };
 
     // Ticket Filter Logic
@@ -92,10 +143,20 @@ export default function HistoryView() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <div className="flex items-center gap-2 text-sm text-secondary-500 font-medium bg-secondary-50 px-4 py-2 rounded-lg border border-secondary-100">
-                    <FileText className="w-4 h-4" />
-                    <FileText className="w-4 h-4" />
-                    {displayData.length} registros encontrados
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-sm text-secondary-500 font-medium bg-secondary-50 px-4 py-2 rounded-lg border border-secondary-100">
+                        <FileText className="w-4 h-4" />
+                        {displayData.length} registros encontrados
+                    </div>
+                    <button
+                        type="button"
+                        onClick={exportToCSV}
+                        disabled={displayData.length === 0}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-primary-300 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors shadow-sm"
+                    >
+                        <Download className="w-4 h-4" />
+                        Exportar CSV
+                    </button>
                 </div>
             </div>
 

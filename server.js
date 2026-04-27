@@ -148,18 +148,7 @@ async function startServer() {
 
     const isProduction = process.env.NODE_ENV === 'production';
 
-    if (isProduction) {
-        console.log('Ambiente: PRODUÇÃO (Servindo arquivos estáticos)');
-        const distPath = path.resolve(__dirname, 'dist');
-
-        // Serve static files
-        app.use(express.static(distPath));
-
-        // SPA Fallback
-        app.get('/{*path}', (req, res) => {
-            res.sendFile(path.join(distPath, 'index.html'));
-        });
-    } else {
+    if (!isProduction) {
         console.log('Ambiente: DESENVOLVIMENTO (Usando Vite Middleware)');
         const { createServer: createViteServer } = await import('vite');
         const vite = await createViteServer({

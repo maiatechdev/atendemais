@@ -246,7 +246,7 @@ export default function Administrador() {
                                 setIsAuthenticated(true);
                                 setCurrentUser(response.user);
                             } else {
-                                setLoginError('Credenciais inválidas ou sem permissão.');
+                                setLoginError(response.error || 'Credenciais inválidas ou sem permissão.');
                             }
                         } finally {
                             setIsLoggingIn(false);

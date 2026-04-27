@@ -380,10 +380,9 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return resolve({ success: false, error: 'Sem conexão com o servidor' });
       }
 
-      // Timeout de segurança caso o servidor não responda (ex: versão antiga rodando)
       const timeout = setTimeout(() => {
-        resolve({ success: false, error: 'Servidor não respondeu. Tente reiniciar o servidor (npm run dev).' });
-      }, 5000);
+        resolve({ success: false, error: 'Servidor demorou para responder. Aguarde alguns segundos e tente novamente (o servidor pode estar iniciando).' });
+      }, 40000);
 
       socketRef.current.emit('login', { email, password: senha }, (response: any) => {
         clearTimeout(timeout);

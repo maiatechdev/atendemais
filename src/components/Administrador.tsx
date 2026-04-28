@@ -322,8 +322,8 @@ export default function Administrador() {
                 <div className="lg:hidden mb-6 flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
                     <h1 className="text-xl font-bold text-primary-900">Admin</h1>
                     <div className="flex gap-4">
-                        <button onClick={() => setChangePassOpen(true)}><Lock className="w-5 h-5 text-secondary-500" /></button>
-                        <button onClick={handleLogout}><LogOut className="w-5 h-5 text-secondary-500" /></button>
+                        <button type="button" aria-label="Alterar senha" onClick={() => setChangePassOpen(true)}><Lock className="w-5 h-5 text-secondary-500" /></button>
+                        <button type="button" aria-label="Sair" onClick={handleLogout}><LogOut className="w-5 h-5 text-secondary-500" /></button>
                     </div>
                 </div>
 

@@ -400,7 +400,7 @@ export default function Administrador() {
                                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
                                     <div className="bg-secondary-50 px-8 py-6 border-b border-secondary-100 flex justify-between items-center">
                                         <h3 className="text-xl font-bold text-secondary-900">{editingUserId ? 'Editar Usuário' : 'Novo Usuário'}</h3>
-                                        <button onClick={() => { setMostrarFormulario(false); setEditingUserId(null); }} className="text-secondary-400 hover:text-secondary-600"><X className="w-5 h-5" /></button>
+                                        <button type="button" aria-label="Fechar" onClick={() => { setMostrarFormulario(false); setEditingUserId(null); }} className="text-secondary-400 hover:text-secondary-600"><X className="w-5 h-5" /></button>
                                     </div>
 
                                     <form onSubmit={handleSubmitUsuario} className="p-8 space-y-5">
@@ -409,6 +409,8 @@ export default function Administrador() {
                                                 <label className="block text-sm font-semibold text-secondary-700 mb-1.5">Nome</label>
                                                 <input
                                                     required
+                                                    placeholder="Nome completo"
+                                                    aria-label="Nome"
                                                     className="w-full px-4 py-2.5 bg-secondary-50 border border-secondary-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
                                                     value={formData.nome}
                                                     onChange={e => setFormData({ ...formData, nome: e.target.value })}
@@ -418,6 +420,8 @@ export default function Administrador() {
                                                 <label className="block text-sm font-semibold text-secondary-700 mb-1.5">Email</label>
                                                 <input
                                                     required
+                                                    placeholder="email@exemplo.com"
+                                                    aria-label="Email"
                                                     className="w-full px-4 py-2.5 bg-secondary-50 border border-secondary-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
                                                     value={formData.email}
                                                     onChange={e => setFormData({ ...formData, email: e.target.value })}
@@ -441,6 +445,7 @@ export default function Administrador() {
                                             <div>
                                                 <label className="block text-sm font-semibold text-secondary-700 mb-1.5">Função</label>
                                                 <select
+                                                    aria-label="Função do usuário"
                                                     className="w-full px-4 py-2.5 bg-secondary-50 border border-secondary-200 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
                                                     value={formData.funcao}
                                                     onChange={e => setFormData({ ...formData, funcao: e.target.value as any })}
@@ -583,12 +588,12 @@ export default function Administrador() {
                             <div className="bg-white p-4 rounded-xl shadow-soft border border-secondary-200 flex items-center gap-4 animate-in slide-in-from-top-2">
                                 <div className="flex flex-col">
                                     <label className="text-xs font-bold text-secondary-500 uppercase mb-1">Data Início</label>
-                                    <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary-500" />
+                                    <input type="date" aria-label="Data Início" value={customStart} onChange={e => setCustomStart(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary-500" />
                                 </div>
                                 <div className="text-secondary-400"><ChevronRight className="w-5 h-5" /></div>
                                 <div className="flex flex-col">
                                     <label className="text-xs font-bold text-secondary-500 uppercase mb-1">Data Fim</label>
-                                    <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary-500" />
+                                    <input type="date" aria-label="Data Fim" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary-500" />
                                 </div>
                             </div>
                         )}

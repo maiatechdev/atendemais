@@ -681,21 +681,19 @@ export default function Administrador() {
                                     </div>
                                 </div>
 
-                                {/* Timeline Chart (Only if not 'hoje') */}
-                                {dateRange !== 'hoje' && (
-                                    <div className="bg-white p-8 rounded-2xl shadow-soft border border-secondary-100 h-96">
-                                        <h3 className="font-bold text-secondary-700 mb-6 flex items-center gap-2 text-lg"><CalendarIcon className="w-5 h-5 text-purple-500" /> Evolução no Período</h3>
-                                        <ResponsiveContainer width="100%" height="85%">
-                                            <LineChart data={dadosPorDia}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: '#64748b' }} />
-                                                <YAxis fontSize={12} tickLine={false} axisLine={false} tick={{ fill: '#64748b' }} />
-                                                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} />
-                                                <Line type="monotone" dataKey="atendimentos" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                                            </LineChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                )}
+                                {/* Timeline Chart */}
+                                <div className="bg-white p-8 rounded-2xl shadow-soft border border-secondary-100 h-96">
+                                    <h3 className="font-bold text-secondary-700 mb-6 flex items-center gap-2 text-lg"><CalendarIcon className="w-5 h-5 text-purple-500" /> Evolução no Período</h3>
+                                    <ResponsiveContainer width="100%" height="85%">
+                                        <LineChart data={dadosPorDia}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                            <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} tick={{ fill: '#64748b' }} />
+                                            <YAxis fontSize={12} tickLine={false} axisLine={false} tick={{ fill: '#64748b' }} />
+                                            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} />
+                                            <Line type="monotone" dataKey="atendimentos" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                         )}
 

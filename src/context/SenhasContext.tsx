@@ -48,12 +48,13 @@ export interface Usuario {
   id: string;
   nome: string;
   email: string;
+  senha?: string;
   funcao: 'Atendente' | 'Gerador' | 'Administrador';
   isAdmin?: boolean;
   guiche?: number;
-  tipoGuiche?: string; // New field
-  tiposAtendimento?: string[]; // Defined services for this user
-  online?: boolean; // Real-time status
+  tipoGuiche?: string;
+  tiposAtendimento?: string[];
+  online?: boolean;
 }
 
 interface ChamarSenhaOptions {

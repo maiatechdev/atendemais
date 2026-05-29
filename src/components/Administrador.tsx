@@ -17,7 +17,7 @@ const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 import logo from '../assets/logo.svg';
 
 export default function Administrador() {
-    const { senhas, usuarios, adicionarUsuario, editarUsuario, excluirUsuario, resetarFila, login, logout, senhaAtual, servicos, criarServico, excluirServico, toggleServico } = useSenhas();
+    const { senhas, usuarios, adicionarUsuario, editarUsuario, excluirUsuario, resetarFila, login, logout, senhaAtual, servicos, criarServico, excluirServico, toggleServico, buscarSenhasPeriodo } = useSenhas();
     const navigate = useNavigate();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [emailInput, setEmailInput] = useState('');
@@ -35,6 +35,7 @@ export default function Administrador() {
     const [dateRange, setDateRange] = useState<'hoje' | 'semana' | 'mes' | 'ano' | 'custom'>('hoje');
     const [customStart, setCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'));
     const [customEnd, setCustomEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const [senhasHistoricas, setSenhasHistoricas] = useState<Senha[]>([]);
 
     const [formData, setFormData] = useState({
         nome: '',
@@ -144,12 +145,12 @@ export default function Administrador() {
         }
     };
 
-    // --- REPORT LOGIC ---
-    const dadosFiltrados = useMemo(() => {
+    // Busca dados históricos quando o período não é "hoje"
+    React.useEffect(() => {
+        if (dateRange === 'hoje' || !isAuthenticated) return;
         const agora = new Date();
-        let inicio = startOfDay(agora);
-        let fim = endOfDay(agora);
-
+        let inicio: Date;
+        let fim: Date;
         if (dateRange === 'semana') {
             inicio = startOfWeek(agora, { weekStartsOn: 0 });
             fim = endOfWeek(agora, { weekStartsOn: 0 });
@@ -159,23 +160,33 @@ export default function Administrador() {
         } else if (dateRange === 'ano') {
             inicio = startOfYear(agora);
             fim = endOfYear(agora);
-        } else if (dateRange === 'custom') {
+        } else {
             inicio = startOfDay(new Date(customStart));
             fim = endOfDay(new Date(customEnd));
         }
+        buscarSenhasPeriodo(inicio.toISOString(), fim.toISOString())
+            .then(setSenhasHistoricas)
+            .catch(console.error);
+    }, [dateRange, customStart, customEnd, isAuthenticated]);
 
+    // --- REPORT LOGIC ---
+    const dadosFiltrados = useMemo(() => {
+        if (dateRange !== 'hoje') return senhasHistoricas;
+
+        const agora = new Date();
+        const inicio = startOfDay(agora);
+        const fim = endOfDay(agora);
         return senhas.filter(s => {
             if (!s.horaGeracao) return false;
-            const dataRef = new Date(s.horaGeracao);
-            return isWithinInterval(dataRef, { start: inicio, end: fim });
+            return isWithinInterval(new Date(s.horaGeracao), { start: inicio, end: fim });
         });
-    }, [senhas, dateRange, customStart, customEnd]);
+    }, [senhas, senhasHistoricas, dateRange, customStart, customEnd]);
 
     // Stats KPIs
     const kpis = useMemo(() => {
         const total = dadosFiltrados.length;
         const concluidas = dadosFiltrados.filter(s => s.status === 'concluida').length;
-        const canceladas = dadosFiltrados.filter(s => s.status === 'cancelada').length;
+        const canceladas = dadosFiltrados.filter(s => s.status === 'cancelada' || s.status === 'ausencia').length;
 
         const temposEspera = dadosFiltrados
             .filter(s => s.horaChamada && s.horaGeracao)

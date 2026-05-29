@@ -24,11 +24,10 @@ async function getFullState() {
         orderBy: { horaChamada: 'desc' }
     });
 
-    // Ultimas senhas (apenas ativas: chamada ou atendendo)
     const ultimasSenhas = await prisma.senha.findMany({
         where: {
             horaChamada: { not: null },
-            status: { notIn: ['cancelada'] }
+            status: { notIn: ['cancelada', 'ausencia'] }
         },
         orderBy: { horaChamada: 'desc' },
         take: 5
@@ -237,6 +236,20 @@ async function startServer() {
             try {
                 const { nome, tipo, prioridade, cpf, telefone, bairro } = data;
 
+                if (cpf && cpf.trim()) {
+                    const cpfDigits = cpf.replace(/\D/g, '');
+                    const senhasComCpf = await prisma.senha.findMany({
+                        where: { cpf: { not: null } },
+                        select: { cpf: true, nome: true },
+                        take: 5000
+                    });
+                    const match = senhasComCpf.find(s => s.cpf && s.cpf.replace(/\D/g, '') === cpfDigits);
+                    if (match && match.nome.toLowerCase().trim() !== nome.toLowerCase().trim()) {
+                        if (callback) callback({ success: false, error: `CPF já cadastrado para "${match.nome}". Verifique o nome informado.` });
+                        return;
+                    }
+                }
+
                 const configKey = (prioridade === 'prioritaria' || prioridade === 'prioritaria+') ? 'contadorPrioritaria' : 'contadorNormal';
                 const prefixo = prioridade === 'prioritaria+' ? 'P+' :
                     prioridade === 'prioritaria' ? 'P' : 'N';
@@ -396,36 +409,14 @@ async function startServer() {
                 const ticket = await prisma.senha.findUnique({ where: { id } });
 
                 if (ticket) {
-                    const novasTentativas = ticket.tentativas + 1;
-                    const maxTentativas = 3;
-
-                    if (novasTentativas >= maxTentativas) {
-                        // Max attempts reached -> Cancel
-                        await prisma.senha.update({
-                            where: { id },
-                            data: {
-                                status: 'cancelada',
-                                tentativas: novasTentativas,
-                                horaFinalizacao: new Date()
-                            }
-                        });
-                        console.log(`[No Show] Senha ${ticket.numero} cancelada após ${novasTentativas} tentativas.`);
-                    } else {
-                        // Back to queue
-                        await prisma.senha.update({
-                            where: { id },
-                            data: {
-                                status: 'aguardando', // Return to queue
-                                tentativas: novasTentativas,
-                                horaChamada: null, // Reset call time so it sorts correctly by generation time (or keep it?) 
-                                // Let's keep generation time as sort key, so it goes back to its place in line.
-                                // We might want to clear atendente/guiche to allow others to pick it up?
-                                atendente: null,
-                                guiche: null
-                            }
-                        });
-                        console.log(`[No Show] Senha ${ticket.numero} devolvida à fila. Tentativa ${novasTentativas}/${maxTentativas}.`);
-                    }
+                    await prisma.senha.update({
+                        where: { id },
+                        data: {
+                            status: 'ausencia',
+                            horaFinalizacao: new Date()
+                        }
+                    });
+                    console.log(`[No Show] Senha ${ticket.numero} marcada como ausência.`);
 
                     const newState = await getFullState();
                     io.emit('stateUpdated', newState);
@@ -727,6 +718,30 @@ async function startServer() {
                     return;
                 }
 
+                if (cpf && cpf.trim()) {
+                    const cpfDigits = cpf.replace(/\D/g, '');
+                    const agendamentosComCpf = await prisma.agendamento.findMany({
+                        where: { cpf: { not: null } },
+                        select: { cpf: true, nome: true },
+                        take: 5000
+                    });
+                    const matchAg = agendamentosComCpf.find(a => a.cpf && a.cpf.replace(/\D/g, '') === cpfDigits);
+                    if (matchAg && matchAg.nome.toLowerCase().trim() !== nome.toLowerCase().trim()) {
+                        if (callback) callback({ success: false, error: `CPF já cadastrado para "${matchAg.nome}". Verifique o nome informado.` });
+                        return;
+                    }
+                    const senhasComCpf = await prisma.senha.findMany({
+                        where: { cpf: { not: null } },
+                        select: { cpf: true, nome: true },
+                        take: 5000
+                    });
+                    const matchSenha = senhasComCpf.find(s => s.cpf && s.cpf.replace(/\D/g, '') === cpfDigits);
+                    if (matchSenha && matchSenha.nome.toLowerCase().trim() !== nome.toLowerCase().trim()) {
+                        if (callback) callback({ success: false, error: `CPF já cadastrado para "${matchSenha.nome}". Verifique o nome informado.` });
+                        return;
+                    }
+                }
+
                 console.log('[DEBUG] Tentando criar no Prisma...');
                 const novoAgendamento = await prisma.agendamento.create({
                     data: {
@@ -943,6 +958,23 @@ async function startServer() {
                 if (callback) callback({ success: true, data: novaMensagem });
             } catch (e) {
                 console.error('[Chat] Erro ao enviar mensagem:', e);
+                if (callback) callback({ success: false, error: e.message });
+            }
+        });
+
+        socket.on('get_senhas_period', async ({ start, end }, callback) => {
+            try {
+                const senhas = await prisma.senha.findMany({
+                    where: {
+                        horaGeracao: {
+                            gte: new Date(start),
+                            lte: new Date(end)
+                        }
+                    },
+                    orderBy: { horaGeracao: 'asc' }
+                });
+                if (callback) callback({ success: true, data: senhas });
+            } catch (e) {
                 if (callback) callback({ success: false, error: e.message });
             }
         });

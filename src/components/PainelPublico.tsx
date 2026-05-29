@@ -65,7 +65,7 @@ export default function PainelPublico() {
   };
 
   useEffect(() => {
-    if (senhaAtual && ['chamada', 'atendendo'].includes(senhaAtual.status)) {
+    if (senhaAtual && senhaAtual.status === 'chamada') {
       announceTicket(senhaAtual);
     }
   }, [senhaAtual]);

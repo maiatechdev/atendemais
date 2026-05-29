@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'; // Context Updated
 import { io, Socket } from 'socket.io-client';
 
-export type StatusSenha = 'aguardando' | 'chamada' | 'atendendo' | 'concluida' | 'cancelada';
+export type StatusSenha = 'aguardando' | 'chamada' | 'atendendo' | 'concluida' | 'cancelada' | 'ausencia';
 export type TipoAtendimento = 'Cadastro Novo' | 'Atualização' | 'Transferência' | 'Solicitação de Visita' | 'Inclusão' | 'Exclusão' | 'Desmembramento' | 'Atendimento Especial';
 export type Prioridade = 'normal' | 'prioritaria' | 'prioritaria+';
 
@@ -110,6 +110,7 @@ interface SenhasContextType {
   cancelarAgendamento: (id: string) => Promise<any>;
   listarAgendamentos: (data: string) => void;
   buscarHistoricoBeneficiario: (cpf: string) => Promise<{ senhas: Senha[], agendamentos: Agendamento[] }>;
+  buscarSenhasPeriodo: (start: string, end: string) => Promise<Senha[]>;
 
   // Chat Methods
   mensagensChat: ChatMessage[];
@@ -490,6 +491,23 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const parseDates = (s: any): Senha => ({
+    ...s,
+    horaGeracao: s.horaGeracao ? new Date(s.horaGeracao) : new Date(),
+    horaChamada: s.horaChamada ? new Date(s.horaChamada) : undefined,
+    horaFinalizacao: s.horaFinalizacao ? new Date(s.horaFinalizacao) : undefined,
+  });
+
+  const buscarSenhasPeriodo = (start: string, end: string): Promise<Senha[]> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current) return reject('Offline');
+      socketRef.current.emit('get_senhas_period', { start, end }, (resp: any) => {
+        if (resp.success) resolve(resp.data.map(parseDates));
+        else reject(resp.error);
+      });
+    });
+  };
+
   return (
     <SenhasContext.Provider
       value={{
@@ -523,6 +541,7 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         cancelarAgendamento,
         listarAgendamentos,
         buscarHistoricoBeneficiario,
+        buscarSenhasPeriodo,
         mensagensChat,
         enviarMensagem,
         buscarHistoricoChat,

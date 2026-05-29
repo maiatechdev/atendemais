@@ -194,7 +194,6 @@ export default function HistoryView() {
                                                 <td className="px-6 py-4 font-bold text-secondary-900">{item.numero}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="font-bold text-secondary-900">{item.nome}</div>
-                                                    <div className="font-bold text-secondary-900">{item.nome}</div>
                                                     {item.cpf && (
                                                         <button
                                                             onClick={() => openHistory(item.cpf, item.nome)}
@@ -208,9 +207,10 @@ export default function HistoryView() {
                                                 <td className="px-6 py-4">
                                                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${item.status === 'concluida' ? 'bg-green-50 text-green-700 border-green-100' :
                                                         item.status === 'cancelada' ? 'bg-red-50 text-red-700 border-red-100' :
+                                                        item.status === 'ausencia' ? 'bg-orange-50 text-orange-700 border-orange-100' :
                                                             'bg-blue-50 text-blue-700 border-blue-100'
                                                         }`}>
-                                                        {item.status}
+                                                        {item.status === 'ausencia' ? 'Cancelada por ausência' : item.status}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-secondary-600">

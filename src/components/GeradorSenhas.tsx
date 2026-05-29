@@ -200,8 +200,13 @@ export default function GeradorSenhas() {
           }, 5000);
         }
 
-      } catch (err) {
-        alert('Erro: ' + err);
+      } catch (err: any) {
+        const msg = typeof err === 'string' ? err : (err?.message || 'Erro desconhecido');
+        if (msg.toLowerCase().includes('cpf')) {
+          setCpfError(msg);
+        } else {
+          alert('Erro: ' + msg);
+        }
       } finally {
         setIsSubmitting(false);
       }

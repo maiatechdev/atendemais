@@ -115,8 +115,8 @@ async function startServer() {
             await prisma.usuario.create({
                 data: {
                     nome: 'Administrador',
-                    email: 'admin', 
-                    senha: 'admin', 
+                    email: 'admin@atende.plus',
+                    senha: '123456',
                     isAdmin: true,
                     funcao: 'Administrador'
                 }

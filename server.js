@@ -155,6 +155,14 @@ async function startServer() {
             appType: 'spa',
         });
         app.use(vite.middlewares);
+    } else {
+        console.log('Ambiente: PRODUÇÃO (Servindo build estático de /dist)');
+        const distPath = path.join(__dirname, 'dist');
+        app.use(express.static(distPath));
+        // Express 5 requires named wildcards; este catch-all cobre o roteamento do SPA (React Router)
+        app.get('/*splat', (req, res) => {
+            res.sendFile(path.join(distPath, 'index.html'));
+        });
     }
 
     const onlineUsers = new Map(); // socketId -> userId
@@ -949,6 +957,7 @@ async function startServer() {
                     const targets = [...new Set([...recipientSockets, ...senderSockets])];
                     targets.forEach(sid => {
                         io.to(sid).emit('chat_new_message', novaMensagem);
+                        
                     });
                 } else {
                     // Mensagem Geral: Broadcast para todos
@@ -998,7 +1007,7 @@ async function startServer() {
         });
     });
 
-    const PORT = 3001;
+    const PORT = process.env.PORT || 3001;
     httpServer.listen(PORT, '0.0.0.0', () => {
         console.log(`Servidor rodando em http://localhost:${PORT}`);
     });

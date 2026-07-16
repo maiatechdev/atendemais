@@ -13,7 +13,7 @@ O projeto utiliza uma arquitetura **Híbrida (Monorepo)**, unindo a performance 
 *   **Fila Inteligente**: Sistema de prioridades que intercala atendimentos normais e preferenciais automaticamente.
 *   **Monitoramento**: Dashboard ao vivo com métricas de tempo de espera e tamanho da fila.
 *   **Sessão Dinâmica**: Atendentes escolhem seu Guichê/Sala e Serviços no momento do login.
-*   **Persistência**: Dados salvos em banco SQLite, não se perdem ao reiniciar.
+*   **Persistência**: Dados salvos em banco MySQL/MariaDB, não se perdem ao reiniciar.
 
 ---
 
@@ -50,6 +50,7 @@ O projeto utiliza uma arquitetura **Híbrida (Monorepo)**, unindo a performance 
 
 ### Pré-requisitos
 *   Node.js instalado (v18 ou superior).
+*   Um banco MySQL/MariaDB acessível (local, ou o da Hostinger — veja a seção de Deploy abaixo).
 
 ### 1. Instalação
 Baixe o projeto e instale as dependências:
@@ -58,9 +59,13 @@ npm install
 ```
 
 ### 2. Configurar Banco de Dados
-Prepare o banco SQLite (cria o arquivo `prisma/dev.db`):
+Copie `.env.example` para `.env` e preencha `DATABASE_URL` com a string de conexão do seu MySQL/MariaDB:
 ```bash
-npx prisma migrate dev --name init
+cp .env.example .env
+```
+Depois aplique as migrations:
+```bash
+npx prisma migrate deploy
 ```
 
 ### 3. Rodar o Projeto
@@ -97,15 +102,64 @@ Para garantir que o sistema não feche acidentalmente, use o **PM2** (Gerenciado
 
 2.  **Inicie o Sistema:**
     ```bash
-    npx pm2 start npm --name "atende-app" -- start
+    pm2 start ecosystem.config.cjs
     ```
 
 3.  **Comandos Úteis:**
-    *   `npx pm2 list` (Ver se está rodando)
-    *   `npx pm2 logs` (Ver o que está acontecendo)
-    *   `npx pm2 restart atende-app` (Reiniciar)
-    *   `npx pm2 stop atende-app` (Parar)
-    *   `npx pm2 save` (Salvar para iniciar com o Windows - pesquise 'pm2 startup windows')
+    *   `pm2 list` (Ver se está rodando)
+    *   `pm2 logs atendemais` (Ver o que está acontecendo)
+    *   `pm2 restart atendemais` (Reiniciar)
+    *   `pm2 stop atendemais` (Parar)
+    *   `pm2 save` + `pm2 startup` (Garante que reinicia sozinho se a VPS reiniciar)
+
+---
+
+## ☁️ Deploy na Hostinger (VPS + MariaDB)
+
+O sistema é um app único: o `server.js` serve a API/Socket.io **e** o build do frontend (`dist/`). Banco de dados em MariaDB (compatível com MySQL), gerenciado pelo phpMyAdmin do hPanel.
+
+### 1. Criar o banco de dados (hPanel)
+1.  No hPanel, vá em **Bancos de Dados > Gerenciador de Banco de Dados MySQL**.
+2.  Crie um banco (ex: `u123456_atendemais`) e um usuário com senha forte, vinculado ao banco.
+3.  Anote: host (geralmente `localhost` se o banco estiver na mesma VPS), usuário, senha e nome do banco.
+4.  Use o **phpMyAdmin** (link no próprio hPanel) só para inspecionar/editar dados quando precisar — as tabelas serão criadas pelo Prisma, não precisa criar nada manualmente.
+
+### 2. Preparar a VPS
+1.  Acesse via SSH e instale Node.js (v18+) e o PM2 (`npm install -g pm2`).
+2.  Envie o código para a VPS (git clone/pull ou upload via SFTP).
+3.  Instale as dependências:
+    ```bash
+    npm install
+    ```
+
+### 3. Configurar o `.env`
+Copie `.env.example` para `.env` e preencha com os dados do passo 1:
+```bash
+cp .env.example .env
+```
+```env
+DATABASE_URL="mysql://usuario_banco:senha_banco@localhost:3306/nome_do_banco"
+PORT=3001
+NODE_ENV=production
+```
+
+### 4. Criar as tabelas e gerar o build
+```bash
+npx prisma migrate deploy
+npm run build
+```
+
+### 5. Subir com PM2
+```bash
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup
+```
+
+### 6. Apontar o domínio
+Configure um **Nginx** (ou o proxy reverso do próprio hPanel, se disponível no plano) para redirecionar o domínio para `http://127.0.0.1:3001` — a porta definida em `PORT` no `.env`. Lembre de habilitar **WebSocket upgrade** no proxy (necessário para o Socket.io funcionar), e ative SSL gratuito via **Let's Encrypt**.
+
+> Como frontend e backend são servidos pelo mesmo processo/domínio, **não defina `FRONTEND_URL`** no `.env` — o CORS do Socket.io já libera tudo por padrão (`*`), e o cliente usa origem relativa automaticamente.
 
 ---
 

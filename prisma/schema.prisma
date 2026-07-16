@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -37,7 +37,7 @@ model Usuario {
   funcao           String
   guiche           Int?
   tipoGuiche       String? @default("Guichê")
-  tiposAtendimento String? // Armazenado como JSON string
+  tiposAtendimento String? @db.Text // Armazenado como JSON string
 }
 
 model Config {
@@ -59,7 +59,7 @@ model Agendamento {
   bairro       String?
   dataAgendada String
   horaAgendada String?
-  observacoes  String?
+  observacoes  String?  @db.Text
   status       String   @default("pendente")
   tipo         String
   prioridade   String
@@ -72,6 +72,6 @@ model Mensagem {
   autorNome        String
   destinatarioId   String?  // Opcional: nulo significa mensagem geral/broadcast
   destinatarioNome String?
-  texto            String
+  texto            String   @db.Text
   criadoEm         DateTime @default(now())
 }

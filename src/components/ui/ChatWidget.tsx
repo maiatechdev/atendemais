@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, X, Send, ChevronDown } from 'lucide-react';
+import { MessageSquare, X, Send, ChevronDown, Volume2, VolumeX } from 'lucide-react';
 import { useSenhas, type ChatMessage } from '../../context/SenhasContext';
 
 interface ChatWidgetProps {
     usuarioId: string;
     usuarioNome: string;
 }
+
+const MUTE_STORAGE_KEY = 'atendemais_chat_muted';
+const GERAL_KEY = 'geral';
 
 function getInitials(nome: string): string {
     return nome
@@ -36,27 +39,66 @@ function formatTime(dateStr: string): string {
     }
 }
 
+// Conversation key from the current user's point of view: 'geral' or the other user's id
+function convKeyFor(msg: ChatMessage, usuarioId: string): string {
+    if (!msg.destinatarioId) return GERAL_KEY;
+    return msg.autorId === usuarioId ? msg.destinatarioId : msg.autorId;
+}
+
+function playNotificationBeep(audioCtxRef: React.MutableRefObject<AudioContext | null>) {
+    try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!audioCtxRef.current) audioCtxRef.current = new AudioCtx();
+        const ctx = audioCtxRef.current;
+        if (ctx.state === 'suspended') ctx.resume();
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+    } catch {
+        // Ambiente sem suporte a Web Audio - ignora silenciosamente
+    }
+}
+
 export default function ChatWidget({ usuarioId, usuarioNome }: ChatWidgetProps) {
     const { mensagensChat, enviarMensagem, buscarHistoricoChat, usuarios, registerUserInChat } = useSenhas();
 
     const [aberto, setAberto] = useState(false);
     const [texto, setTexto] = useState('');
-    const [naoLidas, setNaoLidas] = useState(0);
     const [destinatarioId, setDestinatarioId] = useState<string | null>(null);
     const [destinatarioNome, setDestinatarioNome] = useState<string | null>(null);
+    const [unreadByConv, setUnreadByConv] = useState<Record<string, number>>({});
+    const [recipientMenuOpen, setRecipientMenuOpen] = useState(false);
+    const [muted, setMuted] = useState<boolean>(() => {
+        try {
+            return localStorage.getItem(MUTE_STORAGE_KEY) === '1';
+        } catch {
+            return false;
+        }
+    });
 
-    const ultimaMsgVistaid = useRef<string | null>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const processedMsgIds = useRef<Set<string>>(new Set());
     const historyLoaded = useRef(false);
+    const audioCtxRef = useRef<AudioContext | null>(null);
+
+    const activeConvKey = destinatarioId || GERAL_KEY;
 
     // Load history once on mount or when usuarioId changes
     useEffect(() => {
         if (usuarioId) {
-            console.log(`[ChatWidget] Inicializando para ${usuarioNome} (${usuarioId})`);
             registerUserInChat(usuarioId);
             buscarHistoricoChat(usuarioId);
-            historyLoaded.current = true;
         }
     }, [usuarioId, usuarioNome]);
 
@@ -67,26 +109,79 @@ export default function ChatWidget({ usuarioId, usuarioNome }: ChatWidgetProps) 
         }
     }, [mensagensChat, aberto]);
 
-    // Track unread count when chat is closed
+    // Track unread messages per conversation + play notification sound
     useEffect(() => {
-        if (!aberto && mensagensChat.length > 0) {
-            const ultima = mensagensChat[mensagensChat.length - 1];
-            // Only count if it's for me (or general) and not from me
-            const isForMe = !ultima.destinatarioId || ultima.destinatarioId === usuarioId;
-            if (isForMe && ultima.autorId !== usuarioId && ultima.id !== ultimaMsgVistaid.current) {
-                setNaoLidas((prev) => prev + 1);
-            }
+        if (!historyLoaded.current) {
+            // First load: mark all existing messages as already seen, don't notify for history
+            mensagensChat.forEach((m) => processedMsgIds.current.add(m.id));
+            historyLoaded.current = true;
+            return;
         }
-    }, [mensagensChat, aberto, usuarioId]);
 
-    // Reset unread when opened
+        const novasMensagens = mensagensChat.filter((m) => !processedMsgIds.current.has(m.id));
+        if (novasMensagens.length === 0) return;
+
+        let houveNotificavel = false;
+        const incrementos: Record<string, number> = {};
+
+        novasMensagens.forEach((msg) => {
+            processedMsgIds.current.add(msg.id);
+            if (msg.autorId === usuarioId) return; // Mensagens que eu mesmo enviei não geram notificação
+
+            const key = convKeyFor(msg, usuarioId);
+            const estouVendoEssaConversa = aberto && key === activeConvKey;
+            if (estouVendoEssaConversa) return;
+
+            incrementos[key] = (incrementos[key] || 0) + 1;
+            houveNotificavel = true;
+        });
+
+        if (houveNotificavel) {
+            setUnreadByConv((prev) => {
+                const next = { ...prev };
+                for (const key in incrementos) {
+                    next[key] = (next[key] || 0) + incrementos[key];
+                }
+                return next;
+            });
+            if (!muted) playNotificationBeep(audioCtxRef);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mensagensChat, aberto, activeConvKey, usuarioId, muted]);
+
+    const marcarConversaComoLida = (key: string) => {
+        setUnreadByConv((prev) => {
+            if (!prev[key]) return prev;
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
     const handleAbrir = () => {
         setAberto(true);
-        setNaoLidas(0);
-        if (mensagensChat.length > 0) {
-            ultimaMsgVistaid.current = mensagensChat[mensagensChat.length - 1].id;
-        }
+        marcarConversaComoLida(activeConvKey);
         setTimeout(() => inputRef.current?.focus(), 100);
+    };
+
+    const handleSelecionarConversa = (id: string | null, nome: string | null) => {
+        setDestinatarioId(id);
+        setDestinatarioNome(nome);
+        marcarConversaComoLida(id || GERAL_KEY);
+        setRecipientMenuOpen(false);
+        setTimeout(() => inputRef.current?.focus(), 100);
+    };
+
+    const toggleMuted = () => {
+        setMuted((prev) => {
+            const next = !prev;
+            try {
+                localStorage.setItem(MUTE_STORAGE_KEY, next ? '1' : '0');
+            } catch {
+                // localStorage indisponível - preferência não será persistida
+            }
+            return next;
+        });
     };
 
     const handleEnviar = () => {
@@ -102,11 +197,23 @@ export default function ChatWidget({ usuarioId, usuarioNome }: ChatWidgetProps) 
         }
     };
 
-    // Filter messages for display (optional since server filters, but good for client-side consistency)
+    // Show only messages belonging to the conversation currently open in the "Para:" selector
     const filteredMessages = mensagensChat.filter(msg => {
-        if (!msg.destinatarioId) return true; // Public
-        return msg.autorId === usuarioId || msg.destinatarioId === usuarioId;
+        if (!destinatarioId) return !msg.destinatarioId; // Equipe (Geral): só mensagens públicas
+        return (
+            (msg.autorId === usuarioId && msg.destinatarioId === destinatarioId) ||
+            (msg.autorId === destinatarioId && msg.destinatarioId === usuarioId)
+        );
     });
+
+    const totalNaoLidas = Object.values(unreadByConv).reduce((a, b) => a + b, 0);
+    const outrasConversasNaoLidas = totalNaoLidas - (unreadByConv[activeConvKey] || 0);
+
+    const outrosUsuarios = usuarios.filter(u => u.id !== usuarioId);
+    const conversas = [
+        { id: null as string | null, nome: 'Equipe (Geral)', key: GERAL_KEY },
+        ...outrosUsuarios.map(u => ({ id: u.id, nome: u.nome, key: u.id })),
+    ];
 
     return (
         <div className="chat-widget-container">
@@ -122,9 +229,9 @@ export default function ChatWidget({ usuarioId, usuarioNome }: ChatWidgetProps) 
                 ) : (
                     <>
                         <MessageSquare className="w-6 h-6" />
-                        {naoLidas > 0 && (
+                        {totalNaoLidas > 0 && (
                             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[1.25rem] h-5 flex items-center justify-center px-1 shadow-md animate-bounce">
-                                {naoLidas > 9 ? '9+' : naoLidas}
+                                {totalNaoLidas > 9 ? '9+' : totalNaoLidas}
                             </span>
                         )}
                     </>
@@ -147,37 +254,64 @@ export default function ChatWidget({ usuarioId, usuarioNome }: ChatWidgetProps) 
                                     <p className="text-blue-100 text-[10px] mt-0.5">Equipe Atende+</p>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setAberto(false)}
-                                className="text-white/70 hover:text-white p-1 rounded-lg transition-colors"
-                            >
-                                <ChevronDown className="w-5 h-5" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={toggleMuted}
+                                    className="text-white/70 hover:text-white p-1 rounded-lg transition-colors"
+                                    title={muted ? 'Ativar som de notificações' : 'Silenciar notificações'}
+                                    aria-label={muted ? 'Ativar som de notificações' : 'Silenciar notificações'}
+                                >
+                                    {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                                </button>
+                                <button
+                                    onClick={() => setAberto(false)}
+                                    className="text-white/70 hover:text-white p-1 rounded-lg transition-colors"
+                                >
+                                    <ChevronDown className="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Recipient Selector */}
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="relative flex items-center gap-2 mt-1">
                             <span className="text-[10px] font-bold text-blue-100/70 uppercase">Para:</span>
-                            <select
-                                value={destinatarioId || ''}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (!val) {
-                                        setDestinatarioId(null);
-                                        setDestinatarioNome(null);
-                                    } else {
-                                        const u = usuarios.find(usr => usr.id === val);
-                                        setDestinatarioId(val);
-                                        setDestinatarioNome(u?.nome || 'Usuário');
-                                    }
-                                }}
-                                className="bg-blue-500/50 text-white text-[11px] font-semibold rounded px-2 py-0.5 outline-none border border-white/20 hover:bg-blue-500/70 transition-colors cursor-pointer flex-1"
+                            <button
+                                onClick={() => setRecipientMenuOpen((v) => !v)}
+                                className="relative bg-blue-500/50 text-white text-[11px] font-semibold rounded px-2 py-0.5 outline-none border border-white/20 hover:bg-blue-500/70 transition-colors cursor-pointer flex-1 flex items-center justify-between gap-1"
                             >
-                                <option value="" className="text-gray-800">Equipe (Geral)</option>
-                                {usuarios.filter(u => u.id !== usuarioId).map(u => (
-                                    <option key={u.id} value={u.id} className="text-gray-800">{u.nome}</option>
-                                ))}
-                            </select>
+                                <span className="truncate">{destinatarioNome || 'Equipe (Geral)'}</span>
+                                <span className="flex items-center gap-1 shrink-0">
+                                    {outrasConversasNaoLidas > 0 && (
+                                        <span className="w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                                            {outrasConversasNaoLidas > 9 ? '9+' : outrasConversasNaoLidas}
+                                        </span>
+                                    )}
+                                    <ChevronDown className="w-3 h-3" />
+                                </span>
+                            </button>
+
+                            {recipientMenuOpen && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-100 py-1 max-h-56 overflow-y-auto z-10">
+                                    {conversas.map((c) => {
+                                        const unread = unreadByConv[c.key] || 0;
+                                        const isActive = c.key === activeConvKey;
+                                        return (
+                                            <button
+                                                key={c.key}
+                                                onClick={() => handleSelecionarConversa(c.id, c.id ? c.nome : null)}
+                                                className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-gray-50 transition-colors ${isActive ? 'bg-blue-50 font-semibold text-blue-700' : 'text-gray-700'}`}
+                                            >
+                                                <span className="truncate">{c.nome}</span>
+                                                {unread > 0 && (
+                                                    <span className="w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center shrink-0">
+                                                        {unread > 9 ? '9+' : unread}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     </div>
 

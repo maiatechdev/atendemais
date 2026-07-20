@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Home, Users, BarChart2, Settings, Edit2, Trash2, Plus, X, AlertTriangle, LogOut, ChevronRight, User, Calendar as CalendarIcon, Filter, Download, Clock, Shield, Activity, Layers, ToggleLeft, ToggleRight, Volume2, Lock } from 'lucide-react';
+import { Home, Users, BarChart2, Settings, Edit2, Trash2, Plus, X, AlertTriangle, LogOut, ChevronRight, User, Calendar as CalendarIcon, Filter, Download, Clock, Shield, Activity, Layers, ToggleLeft, ToggleRight, Volume2, Lock, Menu } from 'lucide-react';
 import LiveDashboard from './admin/LiveDashboard';
 import UsersOnlineList from './admin/UsersOnlineList';
 import HistoryView from './admin/HistoryView';
@@ -16,6 +16,16 @@ import { ptBR } from 'date-fns/locale';
 const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 import logo from '../assets/logo.svg';
 
+type Aba = 'usuarios' | 'servicos' | 'estatisticas' | 'configuracoes' | 'monitoramento' | 'historico';
+
+const NAV_ITEMS: { key: Aba; label: string; icon: typeof Users }[] = [
+    { key: 'usuarios', label: 'Usuários', icon: Users },
+    { key: 'servicos', label: 'Serviços', icon: Layers },
+    { key: 'estatisticas', label: 'Dashboard', icon: BarChart2 },
+    { key: 'historico', label: 'Histórico', icon: Clock },
+    { key: 'configuracoes', label: 'Configurações', icon: Settings },
+];
+
 export default function Administrador() {
     const { senhas, usuarios, adicionarUsuario, editarUsuario, excluirUsuario, resetarFila, login, logout, senhaAtual, servicos, criarServico, excluirServico, toggleServico, buscarSenhasPeriodo } = useSenhas();
     const navigate = useNavigate();
@@ -25,7 +35,8 @@ export default function Administrador() {
     const [loginError, setLoginError] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-    const [abaAtiva, setAbaAtiva] = useState<'usuarios' | 'servicos' | 'estatisticas' | 'configuracoes' | 'monitoramento' | 'historico'>('usuarios');
+    const [abaAtiva, setAbaAtiva] = useState<Aba>('usuarios');
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [mostrarFormulario, setMostrarFormulario] = useState(false);
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [changePassOpen, setChangePassOpen] = useState(false);
@@ -327,15 +338,39 @@ export default function Administrador() {
             </aside>
 
             {/* Content */}
-            <main className="flex-1 p-8 overflow-y-auto h-screen bg-secondary-50">
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto h-screen bg-secondary-50">
 
                 {/* HEADER MOBILE */}
-                <div className="lg:hidden mb-6 flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
-                    <h1 className="text-xl font-bold text-primary-900">Admin</h1>
-                    <div className="flex gap-4">
-                        <button type="button" aria-label="Alterar senha" onClick={() => setChangePassOpen(true)}><Lock className="w-5 h-5 text-secondary-500" /></button>
-                        <button type="button" aria-label="Sair" onClick={handleLogout}><LogOut className="w-5 h-5 text-secondary-500" /></button>
+                <div className="lg:hidden mb-6 sticky top-0 z-20">
+                    <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+                        <button
+                            type="button"
+                            aria-label={mobileNavOpen ? 'Fechar menu' : 'Abrir menu'}
+                            onClick={() => setMobileNavOpen(v => !v)}
+                            className="flex items-center gap-2 text-primary-900"
+                        >
+                            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                            <h1 className="text-xl font-bold">{NAV_ITEMS.find(i => i.key === abaAtiva)?.label || 'Admin'}</h1>
+                        </button>
+                        <div className="flex gap-4">
+                            <button type="button" aria-label="Alterar senha" onClick={() => setChangePassOpen(true)}><Lock className="w-5 h-5 text-secondary-500" /></button>
+                            <button type="button" aria-label="Sair" onClick={handleLogout}><LogOut className="w-5 h-5 text-secondary-500" /></button>
+                        </div>
                     </div>
+
+                    {mobileNavOpen && (
+                        <div className="mt-2 bg-white rounded-xl shadow-lg border border-secondary-100 p-2 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                            {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+                                <button
+                                    key={key}
+                                    onClick={() => { setAbaAtiva(key); setMobileNavOpen(false); }}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${abaAtiva === key ? 'bg-primary-50 text-primary-700' : 'text-secondary-600 hover:bg-secondary-50'}`}
+                                >
+                                    <Icon className="w-5 h-5" /> {label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {abaAtiva === 'usuarios' && (
@@ -409,13 +444,13 @@ export default function Administrador() {
                         {mostrarFormulario && (
                             <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
                                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-                                    <div className="bg-secondary-50 px-8 py-6 border-b border-secondary-100 flex justify-between items-center">
+                                    <div className="bg-secondary-50 px-5 sm:px-8 py-5 sm:py-6 border-b border-secondary-100 flex justify-between items-center">
                                         <h3 className="text-xl font-bold text-secondary-900">{editingUserId ? 'Editar Usuário' : 'Novo Usuário'}</h3>
                                         <button type="button" aria-label="Fechar" onClick={() => { setMostrarFormulario(false); setEditingUserId(null); }} className="text-secondary-400 hover:text-secondary-600"><X className="w-5 h-5" /></button>
                                     </div>
 
-                                    <form onSubmit={handleSubmitUsuario} className="p-8 space-y-5">
-                                        <div className="grid grid-cols-2 gap-5">
+                                    <form onSubmit={handleSubmitUsuario} className="p-5 sm:p-8 space-y-5">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                             <div>
                                                 <label className="block text-sm font-semibold text-secondary-700 mb-1.5">Nome</label>
                                                 <input
@@ -452,7 +487,7 @@ export default function Administrador() {
                                             />
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-5">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                             <div>
                                                 <label className="block text-sm font-semibold text-secondary-700 mb-1.5">Função</label>
                                                 <select
@@ -470,7 +505,7 @@ export default function Administrador() {
                                             {formData.funcao === 'Atendente' && (
                                                 <div className="col-span-2 space-y-3 p-4 bg-secondary-50 border border-secondary-200 rounded-lg">
                                                     <label className="block text-sm font-semibold text-secondary-700">Serviços Atendidos</label>
-                                                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto custom-scrollbar">
                                                         {(servicos || []).filter(s => s.ativo).map(s => (
                                                             <label key={s.id} className="flex items-center gap-2 cursor-pointer hover:bg-white p-2 rounded transition-colors">
                                                                 <input
@@ -515,7 +550,7 @@ export default function Administrador() {
 
                         {/* Add Service Form */}
                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-secondary-200">
-                            <form onSubmit={handleCriarServico} className="flex gap-4">
+                            <form onSubmit={handleCriarServico} className="flex flex-col sm:flex-row gap-4">
                                 <input
                                     type="text"
                                     value={newServiceInput}
@@ -535,6 +570,7 @@ export default function Administrador() {
 
                         {/* Services List */}
                         <div className="bg-white rounded-2xl shadow-sm border border-secondary-200 overflow-hidden">
+                            <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-secondary-50 border-b border-secondary-200">
                                     <tr>
@@ -574,6 +610,7 @@ export default function Administrador() {
                                     )}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -596,12 +633,12 @@ export default function Administrador() {
 
                         {/* Custom Date Range Inputs */}
                         {dateRange === 'custom' && (
-                            <div className="bg-white p-4 rounded-xl shadow-soft border border-secondary-200 flex items-center gap-4 animate-in slide-in-from-top-2">
+                            <div className="bg-white p-4 rounded-xl shadow-soft border border-secondary-200 flex flex-col sm:flex-row items-start sm:items-center gap-4 animate-in slide-in-from-top-2">
                                 <div className="flex flex-col">
                                     <label className="text-xs font-bold text-secondary-500 uppercase mb-1">Data Início</label>
                                     <input type="date" aria-label="Data Início" value={customStart} onChange={e => setCustomStart(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary-500" />
                                 </div>
-                                <div className="text-secondary-400"><ChevronRight className="w-5 h-5" /></div>
+                                <div className="text-secondary-400 hidden sm:block"><ChevronRight className="w-5 h-5" /></div>
                                 <div className="flex flex-col">
                                     <label className="text-xs font-bold text-secondary-500 uppercase mb-1">Data Fim</label>
                                     <input type="date" aria-label="Data Fim" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="border border-secondary-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary-500" />
@@ -731,7 +768,7 @@ export default function Administrador() {
 
                         {/* Allow any Admin to access logic */}
                         {currentUser?.isAdmin ? (
-                            <div className="p-8 bg-danger-50 rounded-2xl border border-danger-100">
+                            <div className="p-5 sm:p-8 bg-danger-50 rounded-2xl border border-danger-100">
                                 <h3 className="text-danger-800 font-bold mb-2 flex items-center gap-2 text-lg">
                                     <AlertTriangle className="w-5 h-5" /> Zona de Perigo
                                 </h3>
@@ -748,7 +785,7 @@ export default function Administrador() {
                                 </button>
                             </div>
                         ) : (
-                            <div className="p-8 bg-gray-50 rounded-2xl border border-gray-200 text-center">
+                            <div className="p-5 sm:p-8 bg-gray-50 rounded-2xl border border-gray-200 text-center">
                                 <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                                 <h3 className="text-gray-500 font-bold text-lg">Área Restrita</h3>
                                 <p className="text-gray-400 text-sm">Esta configuração é reservada para administradores.</p>

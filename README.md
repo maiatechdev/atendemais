@@ -92,7 +92,11 @@ Use este modo para deixar rodando na recepção/triagem. É mais leve e rápido.
 
 ## 🤖 Rodando 24h com PM2
 
-Para garantir que o sistema não feche acidentalmente, use o **PM2** (Gerenciador de Processos):
+> Esta seção só se aplica se você for rodar o sistema numa **VPS própria** (fora da Hostinger).
+> No plano atual da Hostinger (Business/hospedagem compartilhada), quem gerencia o processo
+> Node.js é o próprio hPanel — veja a seção de Deploy abaixo, não é preciso PM2/Nginx.
+
+Para garantir que o sistema não feche acidentalmente numa VPS própria, use o **PM2** (Gerenciador de Processos):
 
 1.  **Instale o PM2 (Globalmente):**
     ```bash
@@ -114,52 +118,67 @@ Para garantir que o sistema não feche acidentalmente, use o **PM2** (Gerenciado
 
 ---
 
-## ☁️ Deploy na Hostinger (VPS + MariaDB)
+## ☁️ Deploy na Hostinger (Business — Hospedagem Compartilhada)
 
-O sistema é um app único: o `server.js` serve a API/Socket.io **e** o build do frontend (`dist/`). Banco de dados em MariaDB (compatível com MySQL), gerenciado pelo phpMyAdmin do hPanel.
+O plano contratado é **Hostinger Business** (hospedagem compartilhada), não VPS. Não há acesso
+SSH nem Nginx configurável — todo o gerenciamento é feito pelo **hPanel** (ou pela API dele,
+usada nesta conta via MCP). Quem instala dependências, builda o frontend e mantém o processo
+Node.js rodando é o **gerenciador de apps Node.js do próprio hPanel**, não PM2.
+
+### Estrutura de domínios
+
+O sistema hoje é dividido em dois domínios/sites dentro da mesma conta Hostinger:
+
+| Domínio | Conteúdo | Tipo de deploy |
+|---|---|---|
+| `semdesc.com` (raiz) | Portal de sistemas da SEMDESC (página estática, projeto separado) | Deploy estático |
+| `atendemais.semdesc.com` (subdomínio) | Este projeto (Atende+) | App Node.js |
+
+O objetivo é que `semdesc.com` vire o ponto de entrada único para vários sistemas da SEMDESC no
+futuro; o Atende+ foi movido para o subdomínio para isso. Path-based routing
+(`semdesc.com/atendemais`) não é viável neste plano por falta de acesso a proxy reverso
+configurável — subdomínio é a estratégia usada.
 
 ### 1. Criar o banco de dados (hPanel)
 1.  No hPanel, vá em **Bancos de Dados > Gerenciador de Banco de Dados MySQL**.
-2.  Crie um banco (ex: `u123456_atendemais`) e um usuário com senha forte, vinculado ao banco.
-3.  Anote: host (geralmente `localhost` se o banco estiver na mesma VPS), usuário, senha e nome do banco.
-4.  Use o **phpMyAdmin** (link no próprio hPanel) só para inspecionar/editar dados quando precisar — as tabelas serão criadas pelo Prisma, não precisa criar nada manualmente.
+2.  Crie um banco (ex: `usuario_atendemais`) e um usuário com senha forte, vinculado ao banco.
+3.  Host de conexão: **`127.0.0.1`**, não `localhost` — nesta hospedagem, `localhost` faz o MySQL
+    tentar conectar via socket Unix, que teve problemas intermitentes de autenticação; `127.0.0.1`
+    força conexão TCP e resolveu o problema definitivamente.
+4.  Use o **phpMyAdmin** (link no próprio hPanel) só para inspecionar/editar dados quando
+    precisar — as tabelas são criadas pelo Prisma, não precisa criar nada manualmente.
 
-### 2. Preparar a VPS
-1.  Acesse via SSH e instale Node.js (v18+) e o PM2 (`npm install -g pm2`).
-2.  Envie o código para a VPS (git clone/pull ou upload via SFTP).
-3.  Instale as dependências:
-    ```bash
-    npm install
-    ```
-
-### 3. Configurar o `.env`
-Copie `.env.example` para `.env` e preencha com os dados do passo 1:
-```bash
-cp .env.example .env
-```
+### 2. Configurar o `.env`
+Copie `.env.example` para `.env` e preencha:
 ```env
-DATABASE_URL="mysql://usuario_banco:senha_banco@localhost:3306/nome_do_banco"
+DATABASE_URL="mysql://usuario_banco:senha_banco@127.0.0.1:3306/nome_do_banco?connection_limit=1"
 PORT=3001
 NODE_ENV=production
+FRONTEND_URL=https://atendemais.semdesc.com
 ```
+> `connection_limit=1` reduz o pool de conexões do Prisma — necessário porque o plano Business
+> tem um limite baixo de processos por conta (NPROC), e o Prisma Query Engine pode travar
+> (`PANIC: timer has gone away`) se abrir conexões demais.
 
-### 4. Criar as tabelas e gerar o build
-```bash
-npx prisma migrate deploy
-npm run build
-```
+### 3. Criar o site/subdomínio e implantar
+1.  No hPanel, crie o site (ou subdomínio, se for um sistema novo além do Atende+) em
+    **Websites**.
+2.  Em **Node.js**, aponte o app para esse domínio/subdomínio, com `entry_file: server.js` e
+    `build_script: build` (o hPanel roda `npm install`, `npm run build` — que gera o `dist/` via
+    Vite — e depois `npm start` automaticamente a cada deploy).
+3.  Envie o código como um arquivo `.zip` (excluindo `node_modules`, `dist`, `build`, `.git`,
+    `documentacao_pdf`, mas **incluindo o `.env`**) pela opção de deploy por arquivo do hPanel.
+4.  Depois do primeiro deploy bem-sucedido, rode as migrations uma vez (via terminal do hPanel ou
+    localmente apontando `DATABASE_URL` para o host público do banco):
+    ```bash
+    npx prisma migrate deploy
+    ```
+5.  Reinicie a aplicação pelo hPanel sempre que trocar variáveis do `.env` (o app não recarrega
+    sozinho).
 
-### 5. Subir com PM2
-```bash
-pm2 start ecosystem.config.cjs
-pm2 save
-pm2 startup
-```
-
-### 6. Apontar o domínio
-Configure um **Nginx** (ou o proxy reverso do próprio hPanel, se disponível no plano) para redirecionar o domínio para `http://127.0.0.1:3001` — a porta definida em `PORT` no `.env`. Lembre de habilitar **WebSocket upgrade** no proxy (necessário para o Socket.io funcionar), e ative SSL gratuito via **Let's Encrypt**.
-
-> Como frontend e backend são servidos pelo mesmo processo/domínio, **não defina `FRONTEND_URL`** no `.env` — o CORS do Socket.io já libera tudo por padrão (`*`), e o cliente usa origem relativa automaticamente.
+> Como frontend e backend são servidos pelo mesmo processo/domínio, o CORS do Socket.io já
+> funciona por padrão — `FRONTEND_URL` só existe para deixar isso explícito agora que há mais de
+> um domínio na mesma conta.
 
 ---
 

@@ -145,6 +145,66 @@ async function startServer() {
         }
     });
 
+    // --- EXTERNAL API (integração com o tá na mão) ---
+    app.use(express.json());
+
+    function verificarApiKey(req, res, next) {
+        const chaveEsperada = process.env.EXTERNAL_API_KEY;
+        if (!chaveEsperada) {
+            console.error('[API Externa] EXTERNAL_API_KEY não configurada no .env, rota bloqueada.');
+            return res.status(503).json({ success: false, error: 'API externa não configurada.' });
+        }
+        if (req.header('x-api-key') !== chaveEsperada) {
+            console.warn('[API Externa] Tentativa de acesso com chave inválida.');
+            return res.status(401).json({ success: false, error: 'Chave de API inválida.' });
+        }
+        next();
+    }
+
+    // GET /api/integracoes/agendamentos?data=2026-09-20
+    // GET /api/integracoes/agendamentos?dataInicio=2026-09-01&dataFim=2026-09-30&status=pendente
+    app.get('/api/integracoes/agendamentos', verificarApiKey, async (req, res) => {
+        try {
+            const { data, dataInicio, dataFim, status } = req.query;
+            const where = {};
+
+            if (data) {
+                where.dataAgendada = data;
+            } else if (dataInicio || dataFim) {
+                where.dataAgendada = {};
+                if (dataInicio) where.dataAgendada.gte = dataInicio;
+                if (dataFim) where.dataAgendada.lte = dataFim;
+            }
+
+            if (status) where.status = status;
+
+            const agendamentos = await prisma.agendamento.findMany({
+                where,
+                orderBy: [{ dataAgendada: 'asc' }, { horaAgendada: 'asc' }],
+                take: 1000
+            });
+
+            res.json({ success: true, data: agendamentos });
+        } catch (e) {
+            console.error('[API Externa] Erro ao listar agendamentos:', e);
+            res.status(500).json({ success: false, error: 'Erro interno ao buscar agendamentos.' });
+        }
+    });
+
+    // GET /api/integracoes/agendamentos/:id
+    app.get('/api/integracoes/agendamentos/:id', verificarApiKey, async (req, res) => {
+        try {
+            const agendamento = await prisma.agendamento.findUnique({ where: { id: req.params.id } });
+            if (!agendamento) {
+                return res.status(404).json({ success: false, error: 'Agendamento não encontrado.' });
+            }
+            res.json({ success: true, data: agendamento });
+        } catch (e) {
+            console.error('[API Externa] Erro ao buscar agendamento:', e);
+            res.status(500).json({ success: false, error: 'Erro interno ao buscar agendamento.' });
+        }
+    });
+
     const isProduction = process.env.NODE_ENV === 'production';
 
     if (!isProduction) {

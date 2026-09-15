@@ -3,8 +3,6 @@ import { Home, Users, BarChart2, Settings, Edit2, Trash2, Plus, X, AlertTriangle
 import LiveDashboard from './admin/LiveDashboard';
 import UsersOnlineList from './admin/UsersOnlineList';
 import HistoryView from './admin/HistoryView';
-import LoginLayout from './auth/LoginLayout';
-import LoginForm from './auth/LoginForm';
 import ChangePasswordModal from './auth/ChangePasswordModal';
 import ChatWidget from './ui/ChatWidget';
 import { useSenhas, type Usuario, type Senha } from '../context/SenhasContext';
@@ -27,20 +25,14 @@ const NAV_ITEMS: { key: Aba; label: string; icon: typeof Users }[] = [
 ];
 
 export default function Administrador() {
-    const { senhas, usuarios, adicionarUsuario, editarUsuario, excluirUsuario, resetarFila, login, logout, senhaAtual, servicos, criarServico, excluirServico, toggleServico, buscarSenhasPeriodo } = useSenhas();
+    const { senhas, usuarios, adicionarUsuario, editarUsuario, excluirUsuario, resetarFila, logout, senhaAtual, servicos, criarServico, excluirServico, toggleServico, buscarSenhasPeriodo, authUser } = useSenhas();
     const navigate = useNavigate();
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [emailInput, setEmailInput] = useState('');
-    const [passwordInput, setPasswordInput] = useState('');
-    const [loginError, setLoginError] = useState('');
-    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     const [abaAtiva, setAbaAtiva] = useState<Aba>('usuarios');
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [mostrarFormulario, setMostrarFormulario] = useState(false);
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [changePassOpen, setChangePassOpen] = useState(false);
-    const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
 
     // Dashboard Filters
     const [dateRange, setDateRange] = useState<'hoje' | 'semana' | 'mes' | 'ano' | 'custom'>('hoje');
@@ -60,34 +52,9 @@ export default function Administrador() {
 
     const [newServiceInput, setNewServiceInput] = useState('');
 
-    // Login Logic
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoginError('');
-        setIsLoggingIn(true);
-
-        try {
-            const response = await login(emailInput || 'admin', passwordInput);
-
-            if (response.success && (response.user?.isAdmin || response.user?.funcao === 'Administrador')) {
-                console.log('Login Success! Setting User:', response.user);
-                setIsAuthenticated(true);
-                setCurrentUser(response.user);
-                setLoginError('');
-            } else {
-                console.error('Login Failed or Permission Denied:', response);
-                setLoginError('Credenciais inválidas ou sem permissão de administrador.');
-            }
-        } finally {
-            setIsLoggingIn(false);
-        }
-    };
-
     const handleLogout = () => {
-        setIsAuthenticated(false);
-        setPasswordInput('');
-        setEmailInput('');
         logout(); // Disconnect from server
+        navigate('/');
     };
 
     // User Management Logic
@@ -158,7 +125,7 @@ export default function Administrador() {
 
     // Busca dados históricos quando o período não é "hoje"
     React.useEffect(() => {
-        if (dateRange === 'hoje' || !isAuthenticated) return;
+        if (dateRange === 'hoje' || !authUser) return;
         const agora = new Date();
         let inicio: Date;
         let fim: Date;
@@ -178,7 +145,7 @@ export default function Administrador() {
         buscarSenhasPeriodo(inicio.toISOString(), fim.toISOString())
             .then(setSenhasHistoricas)
             .catch(console.error);
-    }, [dateRange, customStart, customEnd, isAuthenticated]);
+    }, [dateRange, customStart, customEnd, authUser]);
 
     // --- REPORT LOGIC ---
     const dadosFiltrados = useMemo(() => {
@@ -250,37 +217,8 @@ export default function Administrador() {
 
 
     // Login Screen
-    // Login Screen
-    if (!isAuthenticated) {
-        return (
-            <LoginLayout
-                title="Painel Administrativo"
-                subtitle="Gerenciamento Geral do Sistema"
-                colorScheme="primary"
-            >
-                <LoginForm
-                    onLogin={async (email, password) => {
-                        setIsLoggingIn(true);
-                        setLoginError('');
-                        try {
-                            const response = await login(email, password);
-                            if (response.success && (response.user?.isAdmin || response.user?.funcao === 'Administrador')) {
-                                setIsAuthenticated(true);
-                                setCurrentUser(response.user);
-                            } else {
-                                setLoginError(response.error || 'Credenciais inválidas ou sem permissão.');
-                            }
-                        } finally {
-                            setIsLoggingIn(false);
-                        }
-                    }}
-                    isLoading={isLoggingIn}
-                    error={loginError}
-                    defaultEmail={emailInput}
-                />
-            </LoginLayout>
-        );
-    }
+    // Guarda de segurança: a rota já garante autenticação via ProtectedRoute
+    if (!authUser) return null;
 
     return (
         <div className="min-h-screen bg-secondary-50 flex">
@@ -767,7 +705,7 @@ export default function Administrador() {
                         </div>
 
                         {/* Allow any Admin to access logic */}
-                        {currentUser?.isAdmin ? (
+                        {authUser?.isAdmin ? (
                             <div className="p-5 sm:p-8 bg-danger-50 rounded-2xl border border-danger-100">
                                 <h3 className="text-danger-800 font-bold mb-2 flex items-center gap-2 text-lg">
                                     <AlertTriangle className="w-5 h-5" /> Zona de Perigo
@@ -789,7 +727,7 @@ export default function Administrador() {
                                 <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                                 <h3 className="text-gray-500 font-bold text-lg">Área Restrita</h3>
                                 <p className="text-gray-400 text-sm">Esta configuração é reservada para administradores.</p>
-                                <p className="text-xs text-gray-400 mt-2">Seu nível: {currentUser?.funcao || 'Desconhecido'}</p>
+                                <p className="text-xs text-gray-400 mt-2">Seu nível: {authUser?.funcao || 'Desconhecido'}</p>
                             </div>
                         )}
                     </div>
@@ -797,20 +735,14 @@ export default function Administrador() {
 
             </main>
 
-            {
-                currentUser && (
-                    <ChangePasswordModal
-                        isOpen={changePassOpen}
-                        onClose={() => setChangePassOpen(false)}
-                        userId={currentUser.id}
-                    />
-                )
-            }
+            <ChangePasswordModal
+                isOpen={changePassOpen}
+                onClose={() => setChangePassOpen(false)}
+                userId={authUser.id}
+            />
 
             {/* Floating Chat */}
-            {currentUser && (
-                <ChatWidget usuarioId={currentUser.id} usuarioNome={currentUser.nome} />
-            )}
+            <ChatWidget usuarioId={authUser.id} usuarioNome={authUser.nome} />
         </div >
     );
 }

@@ -98,6 +98,7 @@ interface SenhasContextType {
   excluirServico: (id: string) => void;
   toggleServico: (id: string) => void;
 
+  authUser: Usuario | null;
   login: (email: string, senha: string) => Promise<{ success: boolean; user?: any; error?: string }>;
   logout: () => void;
   atualizarSessaoAtendente: (userId: string, guiche: number, tipoGuiche: string, tiposAtendimento: string[]) => void;
@@ -140,6 +141,8 @@ interface SyncMessage {
   };
 }
 
+const AUTH_STORAGE_KEY = 'atendemais_auth_user';
+
 export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [senhas, setSenhas] = useState<Senha[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -148,6 +151,14 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [ultimasSenhas, setUltimasSenhas] = useState<Senha[]>([]);
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [mensagensChat, setMensagensChat] = useState<ChatMessage[]>([]);
+  const [authUser, setAuthUser] = useState<Usuario | null>(() => {
+    try {
+      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const socketRef = React.useRef<Socket | null>(null);
 
 
@@ -376,6 +387,16 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (socketRef.current) socketRef.current.emit('admin_toggle_service', id);
   };
 
+  const persistAuthUser = (user: Usuario | null) => {
+    setAuthUser(user);
+    try {
+      if (user) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+      else localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch {
+      // localStorage indisponível - sessão não será persistida entre recarregamentos
+    }
+  };
+
   const login = (email: string, senha: string): Promise<{ success: boolean; user?: any; error?: string }> => {
     return new Promise((resolve) => {
       if (!socketRef.current) {
@@ -388,6 +409,10 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       socketRef.current.emit('login', { email, password: senha }, (response: any) => {
         clearTimeout(timeout);
+        if (response.success && response.user) {
+          const fullUser = usuarios.find(u => u.id === response.user.id);
+          persistAuthUser(fullUser || response.user);
+        }
         resolve(response);
       });
     });
@@ -397,6 +422,7 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (socketRef.current) {
       socketRef.current.emit('logout');
     }
+    persistAuthUser(null);
   };
 
   const atualizarSessaoAtendente = (userId: string, guiche: number, tipoGuiche: string, tiposAtendimento: string[]) => {
@@ -531,6 +557,7 @@ export const SenhasProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         excluirServico,
         toggleServico,
 
+        authUser,
         login,
         logout,
         atualizarSessaoAtendente,

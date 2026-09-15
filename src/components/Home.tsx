@@ -1,47 +1,73 @@
 import React from 'react';
-import { Tv, UserCircle, Ticket, Shield, ArrowRight } from 'lucide-react';
+import { Tv, UserCircle, Ticket, Shield, ArrowRight, LogIn, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useSenhas } from '../context/SenhasContext';
+import { canAccessModule, type ModuleKey } from '../utils/access';
 
 import logo from '../assets/logo.svg';
 
+interface ModuleDef {
+  id: string;
+  moduleKey?: ModuleKey; // omitted for modules that don't require login (Painel Público)
+  path: string;
+  title: string;
+  description: string;
+  icon: typeof Tv;
+  color: string;
+}
+
+const MODULES: ModuleDef[] = [
+  {
+    id: 'painel-publico',
+    path: '/painel-publico',
+    title: 'Painel Público',
+    description: 'Visualização de chamadas para TV',
+    icon: Tv,
+    color: 'bg-primary-600',
+  },
+  {
+    id: 'atendente',
+    moduleKey: 'atendente',
+    path: '/atendente',
+    title: 'Atendente',
+    description: 'Chamar e gerenciar senhas',
+    icon: UserCircle,
+    color: 'bg-secondary-600',
+  },
+  {
+    id: 'gerador',
+    moduleKey: 'gerador',
+    path: '/gerador',
+    title: 'Recepção',
+    description: 'Triagem e emissão de tickets',
+    icon: Ticket,
+    color: 'bg-secondary-600',
+  },
+  {
+    id: 'admin',
+    moduleKey: 'admin',
+    path: '/admin',
+    title: 'Administrador',
+    description: 'Configurações e gestão de equipe',
+    icon: Shield,
+    color: 'bg-secondary-800',
+  },
+];
+
 export default function Home() {
   const navigate = useNavigate();
+  const { authUser, logout } = useSenhas();
 
-  const modules = [
-    {
-      id: 'painel-publico',
-      path: '/painel-publico',
-      title: 'Painel Público',
-      description: 'Visualização de chamadas para TV',
-      icon: Tv,
-      color: 'bg-primary-600',
-    },
-    {
-      id: 'atendente',
-      path: '/atendente',
-      title: 'Atendente',
-      description: 'Chamar e gerenciar senhas',
-      icon: UserCircle,
-      color: 'bg-secondary-600',
-    },
-    {
-      id: 'gerador',
-      path: '/gerador',
-      title: 'Recepção',
-      description: 'Triagem e emissão de tickets',
-      icon: Ticket,
-      color: 'bg-secondary-600',
-    },
-    {
-      id: 'admin',
-      path: '/admin',
-      title: 'Administrador',
-      description: 'Configurações e gestão de equipe',
-      icon: Shield,
-      color: 'bg-secondary-800',
-    },
+  // Painel Público sempre visível; os demais módulos só aparecem se o usuário logado tiver acesso.
+  const modules = MODULES.filter(m => !m.moduleKey || canAccessModule(authUser, m.moduleKey));
 
-  ];
+  const abrirModulo = (module: ModuleDef) => {
+    if (module.id === 'painel-publico') {
+      window.open(module.path, 'PainelPublico', 'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
+    } else {
+      navigate(module.path);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-secondary-50 flex items-center justify-center p-6 relative overflow-hidden">
@@ -64,6 +90,31 @@ export default function Home() {
           <div className="mt-2 inline-block px-4 py-1 rounded-full bg-secondary-100 text-secondary-500 text-xs font-semibold uppercase tracking-wider">
             Pref. Municipal de Lauro de Freitas
           </div>
+
+          {/* Auth status */}
+          <div className="mt-6 flex items-center justify-center gap-3">
+            {authUser ? (
+              <>
+                <span className="text-secondary-600 text-sm">
+                  Logado como <span className="font-semibold text-secondary-900">{authUser.nome}</span>
+                  {authUser.funcao ? ` (${authUser.funcao})` : ''}
+                </span>
+                <button
+                  onClick={() => logout()}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-danger-600 hover:text-danger-700 bg-danger-50 hover:bg-danger-100 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <LogOut className="w-4 h-4" /> Sair
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => navigate('/login')}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 px-5 py-2.5 rounded-xl shadow-lg shadow-primary-200 transition-colors"
+              >
+                <LogIn className="w-4 h-4" /> Fazer Login
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Module Cards */}
@@ -71,13 +122,7 @@ export default function Home() {
           {modules.map(module => (
             <button
               key={module.id}
-              onClick={() => {
-                if (module.id === 'painel-publico') {
-                  window.open(module.path, 'PainelPublico', 'width=1280,height=720,menubar=no,toolbar=no,location=no,status=no');
-                } else {
-                  navigate(module.path);
-                }
-              }}
+              onClick={() => abrirModulo(module)}
               className="group bg-white p-8 rounded-2xl shadow-soft hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-secondary-100 flex flex-col items-start text-left relative overflow-hidden"
             >
               <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity`}>
@@ -97,6 +142,12 @@ export default function Home() {
             </button>
           ))}
         </div>
+
+        {!authUser && (
+          <p className="text-center mt-10 text-secondary-400 text-sm">
+            Faça login para visualizar as funções liberadas para o seu usuário.
+          </p>
+        )}
 
         {/* Footer */}
         <div className="text-center mt-16 text-secondary-400 text-sm">

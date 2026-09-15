@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Home, Ticket, CheckCircle, Printer, ArrowLeft, User, Phone, MapPin, AlertTriangle, Layers, CreditCard, Calendar, Lock, Clock, XCircle, Search, CheckSquare, History } from 'lucide-react';
 import { useSenhas, type TipoAtendimento, type Prioridade } from '../context/SenhasContext';
 import { useNavigate } from 'react-router-dom';
-import LoginLayout from './auth/LoginLayout';
-import LoginForm from './auth/LoginForm';
 import ChangePasswordModal from './auth/ChangePasswordModal';
 import ChatWidget from './ui/ChatWidget';
 // import BeneficiaryHistoryModal from './ui/BeneficiaryHistoryModal';
@@ -27,14 +25,8 @@ const LISTA_BAIRROS = [
 ];
 
 export default function GeradorSenhas() {
-  const { gerarSenha, senhas, login, usuarios, servicos, agendar, listarAgendamentos, agendamentos, confirmarAgendamento, cancelarAgendamento } = useSenhas();
+  const { gerarSenha, senhas, servicos, agendar, listarAgendamentos, agendamentos, confirmarAgendamento, cancelarAgendamento, authUser, logout } = useSenhas();
   const navigate = useNavigate();
-
-  // Auth State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [loginError, setLoginError] = useState('');
 
   // App State
   const [nome, setNome] = useState('');
@@ -49,7 +41,6 @@ export default function GeradorSenhas() {
   const [agendamentoConfirmado, setAgendamentoConfirmado] = useState<any>(null);
   const [mostrarSucesso, setMostrarSucesso] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [changePassOpen, setChangePassOpen] = useState(false);
 
   // Scheduling State
@@ -83,9 +74,8 @@ export default function GeradorSenhas() {
   const tiposAtivos = (servicos || []).filter(s => s.ativo);
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    setEmailInput('');
-    setPasswordInput('');
+    logout();
+    navigate('/');
   };
 
   const validarCPF = (cpf: string) => {
@@ -255,41 +245,8 @@ export default function GeradorSenhas() {
       .replace(/(-\d{4})\d+?$/, '$1');
   };
 
-  // --- LOGIN SCREEN ---
-  if (!isAuthenticated) {
-    return (
-      <LoginLayout
-        title="Recepção"
-        subtitle="Triagem e Emissão de Senhas"
-        colorScheme="primary"
-      >
-        <LoginForm
-          onLogin={async (email, password) => {
-            setLoginError('');
-            try {
-              const response = await login(email, password);
-              if (response.success && response.user) {
-                const fullUser = usuarios.find(u => u.id === response.user!.id);
-                const userToSet = fullUser || response.user!;
-                if (userToSet.funcao === 'Gerador' || userToSet.funcao === 'Administrador' || userToSet.isAdmin) {
-                  setIsAuthenticated(true);
-                  setCurrentUser(userToSet);
-                } else {
-                  setLoginError('Acesso negado. Área restrita.');
-                }
-              } else {
-                setLoginError(response.error || 'Credenciais inválidas.');
-              }
-            } catch (e) {
-              setLoginError('Erro ao conectar.');
-            }
-          }}
-          isLoading={false}
-          error={loginError}
-        />
-      </LoginLayout>
-    );
-  }
+  // Guarda de segurança: a rota já garante autenticação via ProtectedRoute
+  if (!authUser) return null;
 
   // --- MAIN APP ---
   return (
@@ -857,28 +814,24 @@ export default function GeradorSenhas() {
         )
       }
 
-      {
-        isAuthenticated && (
-          <ChangePasswordModal
-            isOpen={changePassOpen}
-            onClose={() => setChangePassOpen(false)}
-            userId={currentUser?.id || ''}
-          />
-        )
-      }
+      <ChangePasswordModal
+        isOpen={changePassOpen}
+        onClose={() => setChangePassOpen(false)}
+        userId={authUser?.id || ''}
+      />
 
-      {/* 
+      {/*
       <BeneficiaryHistoryModal
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
         cpf={cpf}
         nome={nome}
-      /> 
+      />
       */}
       {/* Floating Chat */}
       {
-        currentUser && (
-          <ChatWidget usuarioId={currentUser.id} usuarioNome={currentUser.nome} />
+        authUser && (
+          <ChatWidget usuarioId={authUser.id} usuarioNome={authUser.nome} />
         )
       }
     </div>

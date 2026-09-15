@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { useSenhas, type TipoAtendimento } from '../context/SenhasContext';
 import { Phone, CheckCircle, Volume2, Clock, AlertCircle, Settings, X, Save, Lock, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import LoginLayout from './auth/LoginLayout';
-import LoginForm from './auth/LoginForm';
 import ChangePasswordModal from './auth/ChangePasswordModal';
 import BeneficiaryHistoryModal from './ui/BeneficiaryHistoryModal';
 import ChatWidget from './ui/ChatWidget';
@@ -33,43 +31,27 @@ const exibirGuiche = (tipoGuiche: string, guiche: number): string => {
 };
 
 export default function Atendente() {
-  const { senhas, usuarios, servicos, chamarSenha, iniciarAtendimento, finalizarAtendimento, cancelarSenha, repetirSenha, login, logout, atualizarSessaoAtendente, naoApareceu } = useSenhas();
+  const { senhas, usuarios, servicos, chamarSenha, iniciarAtendimento, finalizarAtendimento, cancelarSenha, repetirSenha, logout, atualizarSessaoAtendente, naoApareceu, authUser } = useSenhas();
   const navigate = useNavigate();
 
-  // Auth States
-  const [logado, setLogado] = useState(false);
-  const [sessionConfigured, setSessionConfigured] = useState(false); // New: Session setup completed?
-  const [emailInput, setEmailInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-
-  // User Session State
-  const [usuarioLogado, setUsuarioLogado] = useState<{ id: string, nome: string, guiche?: number, tipoGuiche?: string, tiposAtendimento?: any, isAdmin?: boolean, funcao?: string } | null>(null);
-  const [guiche, setGuiche] = useState(1);
-  const [tipoGuiche, setTipoGuiche] = useState('Guichê'); // Novo state
-  const [tiposAtendimentoLocal, setTiposAtendimentoLocal] = useState<TipoAtendimento[]>([]);
+  // User Session State (seeded from the globally authenticated user; login happens on /login)
+  const [usuarioLogado, setUsuarioLogado] = useState<{ id: string, nome: string, guiche?: number, tipoGuiche?: string, tiposAtendimento?: any, isAdmin?: boolean, funcao?: string } | null>(authUser);
+  const [guiche, setGuiche] = useState(authUser?.guiche || 1);
+  const [tipoGuiche, setTipoGuiche] = useState(authUser?.tipoGuiche || 'Guichê'); // Novo state
+  const [tiposAtendimentoLocal, setTiposAtendimentoLocal] = useState<TipoAtendimento[]>((authUser?.tiposAtendimento as TipoAtendimento[]) || []);
   const [modalConfigOpen, setModalConfigOpen] = useState(false);
-  const [tempGuiche, setTempGuiche] = useState(1);
-  const [tempTipoGuiche, setTempTipoGuiche] = useState('Guichê');
-  const [tempTipos, setTempTipos] = useState<TipoAtendimento[]>([]);
+  const [tempGuiche, setTempGuiche] = useState(authUser?.guiche || 1);
+  const [tempTipoGuiche, setTempTipoGuiche] = useState(authUser?.tipoGuiche || 'Guichê');
+  const [tempTipos, setTempTipos] = useState<TipoAtendimento[]>((authUser?.tiposAtendimento as TipoAtendimento[]) || []);
   const [changePassOpen, setChangePassOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
-  // Initial config load effect
+  // Abre a configuração do turno na primeira renderização caso o atendente ainda não tenha tipos de atendimento definidos
   React.useEffect(() => {
-    if (logado && (!tiposAtendimentoLocal.length)) {
+    if (usuarioLogado && !tiposAtendimentoLocal.length) {
       setModalConfigOpen(true);
-      // Pre-fill if user has saved data (simulated with backend data or default)
-      setModalConfigOpen(true);
-      // Pre-fill if user has saved data (simulated with backend data or default)
-      if (usuarioLogado?.guiche) setTempGuiche(usuarioLogado.guiche);
-      if (usuarioLogado?.tipoGuiche) setTempTipoGuiche(usuarioLogado.tipoGuiche);
-      if (usuarioLogado?.tiposAtendimento) {
-        setTempTipos(usuarioLogado.tiposAtendimento);
-      }
     }
-  }, [logado]);
+  }, []);
 
   const handleSalvarConfig = () => {
     let tiposParaSalvar = [...tempTipos];
@@ -109,47 +91,9 @@ export default function Atendente() {
 
   const senhaAtual = senhas.find(s => (s.status === 'atendendo' || s.status === 'chamada') && s.guiche === guiche);
 
-  // --- LOGIN HANDLER ---
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
-    setIsLoggingIn(true);
-
-    try {
-      const response = await login(emailInput, passwordInput);
-
-      if (response.success && response.user) {
-        // Verificar permissão
-        const u = usuarios.find(user => user.email === response.user.email);
-        const fullUser = usuarios.find(u => u.id === response.user.id);
-
-        if (fullUser && (fullUser.funcao === 'Atendente' || fullUser.isAdmin)) {
-          setLogado(true);
-          setLogado(true);
-          setUsuarioLogado(fullUser);
-          // Defaults
-          setTempGuiche(fullUser.guiche || 1);
-          setTempTipoGuiche(fullUser.tipoGuiche || 'Guichê');
-          setLoginError('');
-        } else {
-          setLoginError('Acesso negado. Este usuário não é um Atendente.');
-        }
-      } else {
-        setLoginError(response.error || 'Credenciais inválidas.');
-      }
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
   const handleLogout = () => {
-    setLogado(false);
-    setUsuarioLogado(null);
-    setEmailInput('');
-    setPasswordInput('');
-    setTiposAtendimentoLocal([]);
-    setModalConfigOpen(false);
     logout();
+    navigate('/');
   };
 
   const handleChamarSenha = () => {
@@ -170,52 +114,8 @@ export default function Atendente() {
     return minutos;
   };
 
-  // --- LOGIN SCREEN ---
-  // --- LOGIN SCREEN ---
-  if (!logado) {
-    return (
-      <LoginLayout
-        title="Portal do Atendente"
-        subtitle="Identifique-se para começar"
-        colorScheme="success"
-      >
-        <LoginForm
-          onLogin={async (email, password) => {
-            setIsLoggingIn(true);
-            setLoginError('');
-            try {
-              const response = await login(email, password);
-              if (response.success && response.user) {
-                const fullUser = usuarios.find(u => u.id === response.user!.id);
-                const userToSet = fullUser || response.user!;
-                if (userToSet && (userToSet.funcao === 'Atendente' || userToSet.isAdmin)) {
-                  setLogado(true);
-                  setUsuarioLogado(userToSet);
-                  setTempGuiche(userToSet.guiche || 1);
-                  setTempTipoGuiche(userToSet.tipoGuiche || 'Guichê');
-                  // Initialize actual state too, to prevent default 'Guichê' if modal is bypassed or fails
-                  setGuiche(userToSet.guiche || 1);
-                  setTipoGuiche(userToSet.tipoGuiche || 'Guichê');
-                  if (userToSet.tiposAtendimento) {
-                    setTiposAtendimentoLocal(userToSet.tiposAtendimento as TipoAtendimento[]);
-                    setTempTipos(userToSet.tiposAtendimento as TipoAtendimento[]);
-                  }
-                } else {
-                  setLoginError('Acesso negado. Apenas atendentes.');
-                }
-              } else {
-                setLoginError(response.error || 'Credenciais inválidas.');
-              }
-            } finally {
-              setIsLoggingIn(false);
-            }
-          }}
-          isLoading={isLoggingIn}
-          error={loginError}
-        />
-      </LoginLayout>
-    );
-  }
+  // Guarda de segurança: a rota já garante autenticação via ProtectedRoute
+  if (!usuarioLogado) return null;
 
   // --- DASHBOARD ATENDENTE (LOGADO) ---
   return (

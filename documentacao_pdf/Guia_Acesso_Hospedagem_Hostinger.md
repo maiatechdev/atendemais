@@ -4,6 +4,12 @@
 **Para:** Gabinete
 **De:** Gabriel Maia
 
+> **Nota:** este guia foi escrito antes de confirmarmos que o plano contratado é **Hostinger
+> Business (hospedagem compartilhada)**, não uma VPS. Nesse plano não existe acesso SSH — todo o
+> trabalho é feito pelo **hPanel** (painel de controle da Hostinger) e sua API. O Passo 2
+> (chave SSH) abaixo não se aplica; foi mantido corrigido apenas como referência histórica.
+> Acesso ao hPanel sozinho já é suficiente para tudo.
+
 ---
 
 ## Passo 1 — Me adicionar como colaborador no hPanel
@@ -28,35 +34,30 @@
 
 ---
 
-## Passo 2 — Liberar acesso ao servidor (SSH)
+## Passo 2 — (Não se aplica neste plano)
 
-O acesso do hPanel sozinho não é suficiente para subir o sistema — também preciso de acesso ao
-servidor em si, chamado de **SSH**. O jeito mais seguro de fazer isso é por **chave**, não por
-senha:
-
-1. Vou te enviar um arquivo de **chave pública** (um texto, não uma senha).
-2. No hPanel, vá em **VPS → [sua VPS] → Configurações → Chaves SSH** (o caminho exato varia
-   conforme o plano).
-3. Adicione a chave que eu te enviei.
-
-Isso me dá acesso ao servidor sem que você precise me contar nenhuma senha, e você pode revogar
-meu acesso a qualquer momento removendo essa chave — sem precisar trocar senha de nada.
-
-> Caso seu plano não tenha essa opção de chave, como alternativa você pode me passar o
-> **usuário e senha de acesso SSH da VPS** diretamente (combinamos o canal seguro para isso).
+Este plano de hospedagem não tem acesso SSH nem VPS — não existe "servidor" separado para
+liberar chave de acesso. O acesso ao hPanel do Passo 1 já é suficiente para tudo: criar bancos de
+dados, subdomínios e implantar o sistema, tudo pelo painel/API da própria Hostinger.
 
 ---
 
 ## O que eu vou fazer depois de ter acesso
 
-Só para deixar transparente o que vai acontecer no servidor depois da liberação:
+Só para deixar transparente o que acontece depois da liberação:
 
-1. Instalar o que for necessário para rodar o sistema (Node.js, gerenciador de processos).
-2. Criar o banco de dados e as tabelas do sistema.
-3. Subir o código do Atende+ e deixá-lo rodando 24 horas.
-4. Configurar o domínio para apontar para o sistema, com certificado de segurança (HTTPS)
-   gratuito.
-5. Testar tudo antes de avisar que está no ar.
+1. Criar o banco de dados MySQL e as tabelas do sistema pelo hPanel.
+2. Criar o site (ou subdomínio) e configurar o app Node.js pelo gerenciador de apps do próprio
+   hPanel — ele cuida de instalar dependências, gerar o build e manter o processo rodando 24h,
+   sem precisar de VPS, PM2 ou Nginx.
+3. Subir o código do Atende+ e deixá-lo rodando.
+4. Testar tudo antes de avisar que está no ar.
+
+### Estrutura de domínios
+
+O Atende+ roda no subdomínio `atendemais.semdesc.com`. A raiz `semdesc.com` é reservada para um
+**portal** que vai reunir outros sistemas da SEMDESC no futuro, cada um em seu próprio
+subdomínio — assim dá para adicionar sistemas novos sem afetar os que já estão no ar.
 
 ---
 

@@ -49,8 +49,8 @@ O projeto utiliza uma arquitetura **Híbrida (Monorepo)**, unindo a performance 
 ## 🛠️ Instalação e Execução
 
 ### Pré-requisitos
-*   Node.js instalado (v18 ou superior).
-*   Um banco MySQL/MariaDB acessível (local, ou o da Hostinger — veja a seção de Deploy abaixo).
+*   Node.js 24 (mínimo 20.6, por causa da flag `--env-file`).
+*   Um banco MySQL/MariaDB acessível (local na sua máquina, ou o da VM em produção).
 
 ### 1. Instalação
 Baixe o projeto e instale as dependências:
@@ -77,108 +77,76 @@ npm run dev
 ```
 *   Acesse: `http://localhost:3001`
 
-#### 🚀 Modo Produção (Para uso real/Deploy)
-Use este modo para deixar rodando na recepção/triagem. É mais leve e rápido.
-1.  Gere a versão otimizada (apenas uma vez ou após atualizações):
+Para usar o banco de teste definido no `.env.test`:
+```bash
+npm run dev:local
+```
+
+#### 🚀 Modo Produção (teste local do build)
+Para conferir na sua máquina o build que vai para a VM:
+1.  Gere a versão otimizada:
     ```bash
     npm run build
     ```
-2.  Inicie o servidor:
+2.  Inicie o servidor carregando o `.env` (que deve ter `NODE_ENV=production`):
     ```bash
-    npm start
+    node --env-file=.env server.js
     ```
+    > `npm start` não carrega o `.env`. Sem `NODE_ENV=production`, ele sobe em modo desenvolvimento.
+
+Em produção, o sistema roda pelo PM2 na VM. Veja a seção de deploy abaixo.
 
 ---
 
-## 🤖 Rodando 24h com PM2
+## ☁️ Deploy em Produção (VM Ubuntu)
 
-> Esta seção só se aplica se você for rodar o sistema numa **VPS própria** (fora da Hostinger).
-> No plano atual da Hostinger (Business/hospedagem compartilhada), quem gerencia o processo
-> Node.js é o próprio hPanel — veja a seção de Deploy abaixo, não é preciso PM2/Nginx.
+O Atende+ e o Portal SEMDESC rodam numa **VM Ubuntu 24.04** da infraestrutura do município.
+O passo a passo completo está em **[DEPLOY_VM.md](DEPLOY_VM.md)**.
 
-Para garantir que o sistema não feche acidentalmente numa VPS própria, use o **PM2** (Gerenciador de Processos):
+### Arquitetura
 
-1.  **Instale o PM2 (Globalmente):**
-    ```bash
-    npm install -g pm2
-    ```
-    *(Se der erro de permissão no Windows, abra o PowerShell como Admin)*
+```
+Internet ──443/80──► Nginx ──┬── domínio do portal   → Portal SEMDESC (arquivos estáticos)
+                             └── domínio do Atende+  → 127.0.0.1:3001 (Node/PM2, HTTP + WebSocket)
+                                                            │
+                                                            └── MariaDB 127.0.0.1:3306 (só local)
+```
 
-2.  **Inicie o Sistema:**
-    ```bash
-    pm2 start ecosystem.config.cjs
-    ```
-
-3.  **Comandos Úteis:**
-    *   `pm2 list` (Ver se está rodando)
-    *   `pm2 logs atendemais` (Ver o que está acontecendo)
-    *   `pm2 restart atendemais` (Reiniciar)
-    *   `pm2 stop atendemais` (Parar)
-    *   `pm2 save` + `pm2 startup` (Garante que reinicia sozinho se a VPS reiniciar)
-
----
-
-## ☁️ Deploy na Hostinger (Business — Hospedagem Compartilhada)
-
-O plano contratado é **Hostinger Business** (hospedagem compartilhada), não VPS. Não há acesso
-SSH nem Nginx configurável — todo o gerenciamento é feito pelo **hPanel** (ou pela API dele,
-usada nesta conta via MCP). Quem instala dependências, builda o frontend e mantém o processo
-Node.js rodando é o **gerenciador de apps Node.js do próprio hPanel**, não PM2.
+| Componente | Papel |
+|---|---|
+| **Nginx** | Proxy reverso, HTTPS e arquivos estáticos do portal. Repassa o WebSocket do Socket.io. |
+| **PM2** | Mantém o `server.js` rodando e o reinicia se a VM reiniciar (`ecosystem.config.cjs`). |
+| **MariaDB** | Banco local. As tabelas são criadas pelas migrations do Prisma. |
 
 ### Estrutura de domínios
 
-O sistema hoje é dividido em dois domínios/sites dentro da mesma conta Hostinger:
+O Portal SEMDESC (repositório `portal-semdesc`) é o ponto de entrada único dos sistemas da
+Secretaria. Cada sistema fica em um **subdomínio próprio** do portal, e o Atende+ é o primeiro.
+Para adicionar um sistema novo, basta criar um bloco `server` no Nginx apontando para a porta
+interna dele e colocar o link no portal.
 
-| Domínio | Conteúdo | Tipo de deploy |
-|---|---|---|
-| `semdesc.com` (raiz) | Portal de sistemas da SEMDESC (página estática, projeto separado) | Deploy estático |
-| `atendemais.semdesc.com` (subdomínio) | Este projeto (Atende+) | App Node.js |
+### Resumo da atualização
 
-O objetivo é que `semdesc.com` vire o ponto de entrada único para vários sistemas da SEMDESC no
-futuro; o Atende+ foi movido para o subdomínio para isso. Path-based routing
-(`semdesc.com/atendemais`) não é viável neste plano por falta de acesso a proxy reverso
-configurável — subdomínio é a estratégia usada.
+Na VM, como usuário `deploy` (detalhes e rollback na seção 11 do guia):
 
-### 1. Criar o banco de dados (hPanel)
-1.  No hPanel, vá em **Bancos de Dados > Gerenciador de Banco de Dados MySQL**.
-2.  Crie um banco (ex: `usuario_atendemais`) e um usuário com senha forte, vinculado ao banco.
-3.  Host de conexão: **`127.0.0.1`**, não `localhost` — nesta hospedagem, `localhost` faz o MySQL
-    tentar conectar via socket Unix, que teve problemas intermitentes de autenticação; `127.0.0.1`
-    força conexão TCP e resolveu o problema definitivamente.
-4.  Use o **phpMyAdmin** (link no próprio hPanel) só para inspecionar/editar dados quando
-    precisar — as tabelas são criadas pelo Prisma, não precisa criar nada manualmente.
-
-### 2. Configurar o `.env`
-Copie `.env.example` para `.env` e preencha:
-```env
-DATABASE_URL="mysql://usuario_banco:senha_banco@127.0.0.1:3306/nome_do_banco?connection_limit=1"
-PORT=3001
-NODE_ENV=production
-FRONTEND_URL=https://atendemais.semdesc.com
+```bash
+cd /var/www/atendemais
+git pull origin main
+PUPPETEER_SKIP_DOWNLOAD=1 npm ci
+npm run build
+npx prisma migrate deploy
+pm2 restart atendemais
 ```
-> `connection_limit=1` reduz o pool de conexões do Prisma — necessário porque o plano Business
-> tem um limite baixo de processos por conta (NPROC), e o Prisma Query Engine pode travar
-> (`PANIC: timer has gone away`) se abrir conexões demais.
 
-### 3. Criar o site/subdomínio e implantar
-1.  No hPanel, crie o site (ou subdomínio, se for um sistema novo além do Atende+) em
-    **Websites**.
-2.  Em **Node.js**, aponte o app para esse domínio/subdomínio, com `entry_file: server.js` e
-    `build_script: build` (o hPanel roda `npm install`, `npm run build` — que gera o `dist/` via
-    Vite — e depois `npm start` automaticamente a cada deploy).
-3.  Envie o código como um arquivo `.zip` (excluindo `node_modules`, `dist`, `build`, `.git`,
-    `documentacao_pdf`, mas **incluindo o `.env`**) pela opção de deploy por arquivo do hPanel.
-4.  Depois do primeiro deploy bem-sucedido, rode as migrations uma vez (via terminal do hPanel ou
-    localmente apontando `DATABASE_URL` para o host público do banco):
-    ```bash
-    npx prisma migrate deploy
-    ```
-5.  Reinicie a aplicação pelo hPanel sempre que trocar variáveis do `.env` (o app não recarrega
-    sozinho).
+### Comandos úteis do PM2
 
-> Como frontend e backend são servidos pelo mesmo processo/domínio, o CORS do Socket.io já
-> funciona por padrão — `FRONTEND_URL` só existe para deixar isso explícito agora que há mais de
-> um domínio na mesma conta.
+*   `pm2 list` (Ver se está rodando)
+*   `pm2 logs atendemais` (Ver o que está acontecendo)
+*   `pm2 restart atendemais` (Reiniciar, necessário após alterar o `.env`)
+*   `pm2 stop atendemais` (Parar)
+
+> O `server.js` não usa dotenv. Quem carrega o `.env` é o Node, pela flag `--env-file=.env`
+> definida no `ecosystem.config.cjs`. Por isso o app só enxerga mudanças no `.env` depois de reiniciar.
 
 ---
 

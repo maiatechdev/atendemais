@@ -102,3 +102,11 @@ prisma/*.db-journal
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Arquivos locais que não vão para o repositório
+.claude/
+.agents/
+Skills/
+skills-lock.json
+documentacao_pdf/
+scripts/test_output.txt
